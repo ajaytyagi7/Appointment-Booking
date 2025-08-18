@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "142777567412",
+    "project_id": "bookmyglow",
+    "storage_bucket": "bookmyglow.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:142777567412:android:e063f35498d5fd90d1efe1",
+        "android_client_info": {
+          "package_name": "com.pragyavani.salon"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "142777567412-l2e1g6o6314m68i1uistk1qvpa0no1ip.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pragyavani.salon",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "142777567412-809obe679eebuuu9ppub8ibss6obi5au.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzhW7XTYvBg4a3P5abBLSzxT-YPhw9JN4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "142777567412-809obe679eebuuu9ppub8ibss6obi5au.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
