@@ -1,11 +1,50 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, ScrollView } from 'react-native';
-import { LucideIcon, Home as HomeIcon, Calendar, User, ChevronDown } from 'lucide-react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, ScrollView, Alert, Platform } from 'react-native';
+import { Home as HomeIcon, Calendar, User } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from '@react-native-community/geolocation';
-import haversine from 'haversine-distance';
+import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+
+// Haversine formula to calculate distance between two points in kilometers
+const getDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+};
+
+// Reverse geocode using Nominatim
+const reverseGeocode = async (latitude, longitude) => {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'YourAppName/1.0 (contact@example.com)', // replace with your app info
+      },
+    });
+    const data = await response.json();
+    const address = data?.address || {};
+
+    const name = [
+      address.road || address.street,
+      address.suburb || address.neighbourhood,
+      address.city || address.town || address.village || address.county,
+      address.state || address.region,
+      address.country,
+    ].filter(Boolean).join(', ');
+
+    return name || data?.display_name || 'Current Location';
+  } catch (err) {
+    console.warn('Reverse geocode error:', err?.message || err);
+    return 'Current Location';
+  }
+};
 
 export default function Home() {
   const navigation = useNavigation();
@@ -13,16 +52,115 @@ export default function Home() {
   const [salons, setSalons] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [customerName, setCustomerName] = useState('Guest');
-  const [userLocation, setUserLocation] = useState(null);
-  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [location, setLocation] = useState(null); // { name, latitude, longitude }
+  const [error, setError] = useState('');
+
+  // Check and request location permissions
+  const checkAndRequestPermissions = async () => {
+    try {
+      const permission = Platform.OS === 'android'
+        ? PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION
+        : PERMISSIONS.IOS.LOCATION_WHEN_IN_USE;
+
+      let result = await check(permission);
+      if (result === RESULTS.DENIED) {
+        result = await request(permission, {
+          title: 'Location Permission',
+          message: 'This app needs access to your location to filter nearby salons.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        });
+      }
+
+      if (result === RESULTS.GRANTED) {
+        return true;
+      } else if (result === RESULTS.BLOCKED || result === RESULTS.LIMITED) {
+        setError('Location permission is blocked. Please enable it in your device settings.');
+        Alert.alert(
+          'Permission Blocked',
+          'Location permission is required to fetch your current location. Please enable it in Settings.',
+          [{ text: 'OK' }]
+        );
+        return false;
+      } else {
+        setError('Location permission denied. Please grant permission to use your location.');
+        Alert.alert(
+          'Permission Denied',
+          'Please grant location permission to fetch your current location.',
+          [{ text: 'OK' }]
+        );
+        return false;
+      }
+    } catch (err) {
+      console.warn('Permission check/request error:', err?.message || err);
+      setError('An error occurred while checking permissions.');
+      return false;
+    }
+  };
+
+  // Fetch current location with retry mechanism
+  const fetchCurrentLocation = async (retryCount = 0, maxRetries = 3) => {
+    try {
+      const hasPermission = await checkAndRequestPermissions();
+      if (!hasPermission) {
+        setLocation({ name: 'Select Location', latitude: null, longitude: null });
+        return;
+      }
+
+      Geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          const name = await reverseGeocode(latitude, longitude);
+          setLocation({ name, latitude, longitude });
+          setError('');
+        },
+        (err) => {
+          console.warn('Geolocation error:', err?.message || err, 'Code:', err?.code);
+          if (retryCount < maxRetries && err.code !== 1) { // code 1 is permission denied
+            setTimeout(() => fetchCurrentLocation(retryCount + 1, maxRetries), 3000);
+          } else {
+            let errorMessage;
+            switch (err.code) {
+              case 1:
+                errorMessage = 'Location permission denied. Please grant permission in settings.';
+                break;
+              case 2:
+                errorMessage = 'Location unavailable. Ensure GPS or network is enabled.';
+                break;
+              case 3:
+                errorMessage = 'Location request timed out. Please try again.';
+                break;
+              default:
+                errorMessage = 'Failed to get current location.';
+            }
+            setError(errorMessage);
+            setLocation({ name: 'Select Location', latitude: null, longitude: null });
+            Alert.alert('Location Error', errorMessage, [{ text: 'OK' }]);
+          }
+        },
+        {
+          enableHighAccuracy: false, // Lower accuracy for better compatibility
+          timeout: 30000, // Increased timeout for release builds
+          maximumAge: 0, // Force fresh location
+        }
+      );
+    } catch (e) {
+      console.warn('fetchCurrentLocation error:', e?.message || e);
+      setError('An error occurred while fetching your location.');
+      setLocation({ name: 'Select Location', latitude: null, longitude: null });
+      Alert.alert('Error', 'An error occurred while fetching your location.', [{ text: 'OK' }]);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
+        // Fetch customer data
         const token = await AsyncStorage.getItem('userToken');
         if (token) {
-          const customerResponse = await fetch('http://192.168.200.37:8005/api/customer-app/me', {
+          const customerResponse = await fetch('https://backendsalon.pragyacode.com/api/customer-app/me', {
             method: 'GET',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -31,10 +169,8 @@ export default function Home() {
           });
           if (customerResponse.ok) {
             const customerData = await customerResponse.json();
-            console.log('Customer Data:', customerData, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
             setCustomerName(customerData.customer?.fullName || 'Guest');
           } else {
-            console.warn('Customer fetch failed:', customerResponse.status, customerResponse.statusText, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
             if (customerResponse.status === 401) {
               await AsyncStorage.removeItem('userToken');
               await AsyncStorage.removeItem('customerId');
@@ -44,61 +180,53 @@ export default function Home() {
             setCustomerName('Guest');
           }
         } else {
-          console.warn('No auth token available at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
           setCustomerName('Guest');
         }
 
-        const response = await fetch('http://192.168.200.37:8005/api/public/salons');
-        const data = await response.json();
-        setSalons(data);
+        // Fetch current location
+        await fetchCurrentLocation();
 
-        Geolocation.requestAuthorization();
-        Geolocation.getCurrentPosition(
-          (position) => {
-            setUserLocation({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            });
-          },
-          (error) => {
-            console.warn('Location fetch error:', error.message);
-            setUserLocation(null);
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
+        // Fetch all salons from backend
+        const response = await fetch('https://backendsalon.pragyacode.com/api/public/salons');
+        const data = await response.json();
+
+        // Filter and process salons if location is available
+        if (location && location.latitude && location.longitude) {
+          const locationWords = location.name.toLowerCase().split(/[\s,]+/).filter(word => word.length > 0);
+          const processedSalons = data
+            .map((salon) => {
+              const address = (salon.location?.addressLine1 || '') + ' ' + (salon.location?.city || '');
+              const addressWords = address.toLowerCase().split(/[\s,]+/).filter(word => word.length > 0);
+              const matches = locationWords.some(word => addressWords.includes(word));
+              const latitude = salon.location?.latitude;
+              const longitude = salon.location?.longitude;
+              let distance = 'N/A';
+              if (latitude && longitude) {
+                distance = getDistance(
+                  location.latitude,
+                  location.longitude,
+                  latitude,
+                  longitude
+                ).toFixed(1); // Round to 1 decimal place
+              }
+              return { ...salon, distance, matches };
+            })
+            .filter((salon) => !salon.matches || salon.distance === 'N/A' || parseFloat(salon.distance) > 50);
+          setSalons(processedSalons);
+        } else {
+          setSalons(data); // Show all salons if location fails
+        }
       } catch (error) {
-        console.error('Fetch error:', error.message, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+        console.error('Fetch error:', error.message);
         setCustomerName('Guest');
+        setSalons([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Handle selected location from LiveLocationScreen
-    const { selectedLocation: initialSelectedLocation } = navigation.getState().routes.find(r => r.name === 'Home')?.params || {};
-    if (initialSelectedLocation) {
-      setSelectedLocation(initialSelectedLocation);
-    }
-
     fetchData();
   }, [navigation]);
-
-  const filteredSalons = (selectedLocation || userLocation)
-    ? salons
-        .map(salon => ({
-          ...salon,
-          distance: haversine(
-            selectedLocation ? { latitude: selectedLocation.latitude, longitude: selectedLocation.longitude } : userLocation,
-            {
-              latitude: salon.location?.latitude || 0,
-              longitude: salon.location?.longitude || 0,
-            }
-          ),
-        }))
-        .filter(salon => salon.distance <= 20000) // Filter salons within 20 km
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, 5)
-    : salons; // Show all salons if no location is available
 
   const navItems = [
     { icon: HomeIcon, label: 'Home', screen: 'Home' },
@@ -113,7 +241,7 @@ export default function Home() {
     if (salonImages.startsWith('http://') || salonImages.startsWith('https://')) {
       return salonImages;
     }
-    return `http://192.168.200.37:8005${salonImages}`;
+    return `https://backendsalon.pragyacode.com${salonImages}`;
   };
 
   return (
@@ -151,10 +279,13 @@ export default function Home() {
         <Text style={styles.headerText}>Home</Text>
         <View style={styles.greetingContainer}>
           <Text style={styles.greeting}>Hello, Mr. {customerName}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('LiveLocationScreen')}>
-            <ChevronDown size={20} color="#A16EFF" style={styles.arrowIcon} />
-          </TouchableOpacity>
         </View>
+        <View style={styles.locationContainer}>
+          <Text style={styles.locationText}>
+            {location ? location.name : 'Fetching location...'}
+          </Text>
+        </View>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
       <ScrollView style={styles.scrollView}>
         <View />
@@ -170,12 +301,12 @@ export default function Home() {
           </TouchableOpacity>
         </View>
         <Text style={styles.servicesTitle}>Our Salons</Text>
-        <Text style={styles.servicesCount}>{isLoading ? 'Loading...' : `${filteredSalons.length} salons available`}</Text>
+        <Text style={styles.servicesCount}>{isLoading ? 'Loading...' : `${salons.length} salons available`}</Text>
         <View style={styles.servicesContainer}>
           {isLoading ? (
             <Text style={styles.serviceText}>Loading salons...</Text>
           ) : (
-            filteredSalons.map((salon, index) => (
+            salons.map((salon, index) => (
               <TouchableOpacity
                 style={styles.serviceCard}
                 key={index}
@@ -190,7 +321,9 @@ export default function Home() {
                   <Text style={styles.serviceTypeText}>{salon.location?.salonType || 'N/A'}</Text>
                   <Text style={styles.serviceAddress}>
                     {salon.location?.addressLine1 || salon.location?.city || 'No address'}
-                    {(selectedLocation || userLocation) && salon.distance ? ` (${(salon.distance / 1000).toFixed(1)} km)` : ''}
+                  </Text>
+                  <Text style={styles.serviceDistance}>
+                    Distance: {salon.distance} km
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -250,28 +383,32 @@ const styles = StyleSheet.create({
   greetingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 5,
   },
   greeting: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2E2E2E',
   },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationText: {
+    fontSize: 15,
+    color: '#A16EFF',
+    marginRight: 10,
+  },
+  error: {
+    color: 'red',
+    marginBottom: 8,
+  },
   arrowIcon: {
-    marginLeft: 10,
+    marginLeft: 5,
   },
   scrollView: {
     flex: 1,
     marginBottom: 60,
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  locationText: {
-    fontSize: 16,
-    color: '#333333',
   },
   specialOffer: {
     marginTop: 20,
@@ -376,5 +513,10 @@ const styles = StyleSheet.create({
   serviceAddress: {
     fontSize: 14,
     color: '#7F8C8D',
+  },
+  serviceDistance: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    marginTop: 5,
   },
 });

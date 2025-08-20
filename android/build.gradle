@@ -20,7 +20,7 @@ buildscript {
         classpath("com.android.tools.build:gradle:$gradlePluginVersion")
         classpath("com.facebook.react:react-native-gradle-plugin:$reactNativeGradlePluginVersion")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
-        classpath("com.google.gms:google-services:4.3.15") // ✅ Firebase plugin
+        // ❌ Removed Firebase Google Services plugin
     }
 }
 
@@ -32,10 +32,10 @@ allprojects {
 
     configurations.all {
         resolutionStrategy {
+            // Keep latest location dependency for geolocation
             force 'com.google.android.gms:play-services-location:21.0.1'
         }
     }
 }
-
 
 apply plugin: "com.facebook.react.rootproject"

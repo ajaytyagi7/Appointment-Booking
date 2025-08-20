@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,10 +14,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { LucideEye, LucideEyeOff } from 'lucide-react-native';
-import auth from '@react-native-firebase/auth';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-const API_URL = 'http://192.168.200.37:8005/api/customer-app/register';
+const API_URL = 'https://backendsalon.pragyacode.com/api/customer-app/register';
 
 export default function Register() {
   const [fullName, setFullName] = useState('');
@@ -31,12 +29,6 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigation = useNavigation();
-
-  useEffect(() => {
-    GoogleSignin.configure({
-      webClientId: '142777567412-l2e1g6o6314m68i1uistk1qvpa0no1ip.apps.googleusercontent.com', // 🔸 from Firebase Console
-    });
-  }, []);
 
   const handleRegister = async () => {
     // Trim inputs to prevent spaces being considered valid
@@ -79,6 +71,7 @@ export default function Register() {
         password: trimmedPassword,
         confirmPassword: trimmedConfirmPassword,
       });
+
       console.log('Register response:', response.data);
 
       // Store the customerId in AsyncStorage
@@ -95,42 +88,13 @@ export default function Register() {
     }
   };
 
-  const onGoogleButtonPress = async () => {
-    try {
-      setLoading(true);
-
-      // Get the user's ID token
-      const { idToken } = await GoogleSignin.signIn();
-
-      // Create a Google credential with the token
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-
-      // Sign-in the user with the credential
-      const userCredential = await auth().signInWithCredential(googleCredential);
-
-      // Save user ID in AsyncStorage
-      const customerId = userCredential.user.uid;
-      await AsyncStorage.setItem('customerId', customerId);
-
-      setLoading(false);
-      Alert.alert('Success', 'Google Sign-In successful!');
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
-    } catch (error) {
-      console.error('Google Sign-In Error:', error);
-      setLoading(false);
-      Alert.alert('Error', 'Google Sign-In failed. Try again.');
-    }
-  };
-
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.topText}>Create Account</Text>
         <Text style={styles.subText}>Sign up to book your beauty appointments</Text>
         <View style={styles.form}>
+          {/* Full Name */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Full Name</Text>
             <TextInput
@@ -142,6 +106,7 @@ export default function Register() {
               autoCapitalize="words"
             />
           </View>
+          {/* Mobile */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Mobile Number</Text>
             <TextInput
@@ -153,6 +118,7 @@ export default function Register() {
               keyboardType="phone-pad"
             />
           </View>
+          {/* Email */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -165,6 +131,7 @@ export default function Register() {
               autoCapitalize="none"
             />
           </View>
+          {/* Gender */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Gender</Text>
             <View style={styles.genderContainer}>
@@ -182,6 +149,7 @@ export default function Register() {
               </TouchableOpacity>
             </View>
           </View>
+          {/* Address */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Address</Text>
             <TextInput
@@ -193,6 +161,7 @@ export default function Register() {
               autoCapitalize="sentences"
             />
           </View>
+          {/* Password */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordContainer}>
@@ -212,6 +181,7 @@ export default function Register() {
               </TouchableOpacity>
             </View>
           </View>
+          {/* Confirm Password */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Confirm Password</Text>
             <View style={styles.passwordContainer}>
@@ -231,6 +201,7 @@ export default function Register() {
               </TouchableOpacity>
             </View>
           </View>
+          {/* Register Button */}
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#A16EFF" />
@@ -241,13 +212,7 @@ export default function Register() {
               <Text style={styles.buttonText}>Create Account</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.googleButton} onPress={onGoogleButtonPress}>
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.googleButtonText}>Sign Up with Google</Text>
-            )}
-          </TouchableOpacity>
+          {/* Login Link */}
           <TouchableOpacity
             style={styles.loginLink}
             onPress={() => navigation.navigate('Login')}
@@ -261,124 +226,26 @@ export default function Register() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF',
-    padding: 20,
-    marginTop: 30,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  topText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  subText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  form: {
-    marginTop: 20,
-  },
-  inputContainer: {
-    marginBottom: 15,
-  },
-  label: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
-  },
-  input: {
-    backgroundColor: '#F5F5F5',
-    padding: 15,
-    borderRadius: 10,
-    fontSize: 16,
-    color: '#333',
-  },
-  genderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  genderButton: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-    padding: 15,
-    borderRadius: 10,
-    marginHorizontal: 5,
-    alignItems: 'center',
-  },
-  selectedGender: {
-    backgroundColor: '#E0E0E0',
-  },
-  genderText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  passwordContainer: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  passwordInput: {
-    flex: 1,
-    paddingRight: 50, // Space for the eye icon
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 15,
-    top: '50%',
-    transform: [{ translateY: -10 }],
-  },
-  createButton: {
-    backgroundColor: '#A16EFF',
-    padding: 15,
-    borderRadius: 15,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  googleButton: {
-    backgroundColor: '#DB4437',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  googleButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  loginLink: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#A16EFF',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#333',
-    marginTop: 10,
-  },
+  container: { flex: 1, backgroundColor: '#FFF', padding: 20, marginTop: 30 },
+  scrollView: { flex: 1 },
+  contentContainer: { flexGrow: 1, justifyContent: 'center' },
+  topText: { fontSize: 24, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 10 },
+  subText: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 20 },
+  form: { marginTop: 20 },
+  inputContainer: { marginBottom: 15 },
+  label: { fontSize: 14, color: '#666', marginBottom: 5 },
+  input: { backgroundColor: '#F5F5F5', padding: 15, borderRadius: 10, fontSize: 16, color: '#333' },
+  genderContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+  genderButton: { flex: 1, backgroundColor: '#F5F5F5', padding: 15, borderRadius: 10, marginHorizontal: 5, alignItems: 'center' },
+  selectedGender: { backgroundColor: '#E0E0E0' },
+  genderText: { fontSize: 16, color: '#333' },
+  passwordContainer: { position: 'relative', flexDirection: 'row', alignItems: 'center' },
+  passwordInput: { flex: 1, paddingRight: 50 },
+  eyeIcon: { position: 'absolute', right: 15, top: '50%', transform: [{ translateY: -10 }] },
+  createButton: { backgroundColor: '#A16EFF', padding: 15, borderRadius: 15, alignItems: 'center', marginTop: 10 },
+  buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  loginLink: { marginTop: 20, alignItems: 'center' },
+  linkText: { color: '#A16EFF', fontSize: 14, textAlign: 'center' },
+  loadingContainer: { marginTop: 20, alignItems: 'center' },
+  loadingText: { fontSize: 14, color: '#333', marginTop: 10 },
 });

@@ -5,18 +5,17 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Import screens
-import Home from '@/components/Home/Home';
-import Login from '@/components/auth/Login';
-import Register from '@/components/auth/Register';
-import AuthHome from '@/components/auth/AuthHome';
-import AppointmentDetails from '@/components/booking/AppoinmentDetails';
-import Profile from '@/components/auth/Profile';
-import Appointment from '@/components/booking/Appointment';
-import Service from '@/components/booking/Service';
-import Privacy from '@/components/auth/Privacy';
-import Terms from '@/components/auth/Terms';
-import LiveLocationScreen from '@/components/booking/LiveLocationScreen';
+import Home from './src/components/Home/Home';
+import Login from './src/components/auth/Login';
+import Register from './src/components/auth/Register';
+import AuthHome from './src/components/auth/AuthHome';
+import AppointmentDetails from './src/components/booking/AppoinmentDetails';
+import Profile from './src/components/auth/Profile';
+import Appointment from './src/components/booking/Appointment';
+import Service from './src/components/booking/Service';
+import Privacy from './src/components/auth/Privacy';
+import Terms from './src/components/auth/Terms';
+import LiveLocationScreen from './src/components/booking/LiveLocationScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -48,30 +47,29 @@ export default function RootLayout() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName={isAuthenticated ? 'Home' : 'AuthHome'}>
-        {!isAuthenticated && (
-          <>
-            <Stack.Screen name="AuthHome" component={AuthHome} options={{ headerShown: false }} />
-            <Stack.Screen
-              name="Login"
-              component={(props) => <Login {...props} setIsAuthenticated={setIsAuthenticated} />}
-              options={{ headerShown: false, headerLeft: () => null }}
-            />
-            <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
-          </>
-        )}
-        {isAuthenticated && (
-          <>
-            <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
-            <Stack.Screen name="AppointmentDetails" component={AppointmentDetails} options={{ headerShown: false }} />
-            <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-            <Stack.Screen name="Appointment" component={Appointment} options={{ headerShown: false }} />
-            <Stack.Screen name="Service" component={Service} options={{ headerShown: false }} />
-            <Stack.Screen name="Privacy" component={Privacy} options={{ headerShown: false }} />
-            <Stack.Screen name="Terms" component={Terms} options={{ headerShown: false }} />
-            <Stack.Screen name="LiveLocationScreen" component={LiveLocationScreen} options={{ headerShown: false }} />
-          </>
-        )}
+      <Stack.Navigator
+        initialRouteName={isAuthenticated ? 'Home' : 'AuthHome'}
+        screenOptions={{ headerShown: false }}
+      >
+        {/* Auth Screens */}
+        <Stack.Screen name="AuthHome" component={AuthHome} />
+        <Stack.Screen
+          name="Login"
+          options={{ headerLeft: () => null }}
+        >
+          {(props) => <Login {...props} setIsAuthenticated={setIsAuthenticated} />}
+        </Stack.Screen>
+        <Stack.Screen name="Register" component={Register} />
+
+        {/* App Screens */}
+        <Stack.Screen name="Home" component={Home} />
+        <Stack.Screen name="AppointmentDetails" component={AppointmentDetails} />
+        <Stack.Screen name="Profile" component={Profile} />
+        <Stack.Screen name="Appointment" component={Appointment} />
+        <Stack.Screen name="Service" component={Service} />
+        <Stack.Screen name="Privacy" component={Privacy} />
+        <Stack.Screen name="Terms" component={Terms} />
+        <Stack.Screen name="LiveLocationScreen" component={LiveLocationScreen} />
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>
@@ -84,36 +82,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  appbar: {
-    backgroundColor: 'green',
-  },
-  HomeTitle: {
-    fontSize: 25,
-    fontWeight: 'bold',
-    color: 'green',
-  },
-  image: {
-    width: 250,
-    height: 400,
-    marginBottom: 40,
-    marginTop: 100,
-    marginLeft: 20,
-    marginRight: 20,
-  },
-  loginBtn: {
-    width: '80%',
-    borderRadius: 25,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 40,
-    backgroundColor: 'green',
-    color: 'white',
-  },
-  loginText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
   },
 });

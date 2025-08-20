@@ -93,7 +93,7 @@ export default function Service() {
 
   const getSalonImageUrl = () => {
     // Check if salonImages is a valid URL and starts with the correct domain
-    if (salon.salonImages && typeof salon.salonImages === 'string' && salon.salonImages.startsWith('http://192.168.200.37:8005')) {
+    if (salon.salonImages && typeof salon.salonImages === 'string' && salon.salonImages.startsWith('https://backendsalon.pragyacode.com')) {
       return salon.salonImages; // Use the provided URL directly
     }
     return staticServiceImage;
@@ -102,7 +102,7 @@ export default function Service() {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const response = await fetch(`http://192.168.200.37:8005/api/public/salons`);
+        const response = await fetch(`https://backendsalon.pragyacode.com/api/public/salons`);
         const data = await response.json();
         const selectedSalon = data.find(s => s.salonId === salon.salonId);
         setServices(selectedSalon?.services || []);

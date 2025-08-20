@@ -7,11 +7,9 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LucideEye, LucideEyeOff } from 'lucide-react-native';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import auth from '@react-native-firebase/auth';
 
 // ✅ Your local backend URL
-const BASE_URL = 'http://192.168.200.37:8005';
+const BASE_URL = 'https://backendsalon.pragyacode.com';
 
 export default function Login() {
   const navigation = useNavigation();
@@ -26,11 +24,6 @@ export default function Login() {
       setEmail(route.params.email);
       setPassword(route.params.password);
     }
-
-    // ✅ Configure Google Sign-in
-    GoogleSignin.configure({
-      webClientId: '142777567412-l2e1g6o6314m68i1uistk1qvpa0no1ip.apps.googleusercontent.com',
-    });
   }, [route.params]);
 
   const handleLogin = async () => {
@@ -70,38 +63,6 @@ export default function Login() {
       }
     } catch (error) {
       Alert.alert('Error', error.message || 'Failed to log in. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ✅ Google Sign-in Handler
-  const handleGoogleLogin = async () => {
-    try {
-      setIsLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const { idToken } = await GoogleSignin.signIn();
-
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      const userCredential = await auth().signInWithCredential(googleCredential);
-      const user = userCredential.user;
-
-      // Optional: Store in AsyncStorage
-      await AsyncStorage.setItem('userToken', idToken);
-      await AsyncStorage.setItem('customerId', user.uid);
-
-      // Navigate to Home
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
-
-    } catch (error) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        Alert.alert('Cancelled', 'Google sign-in was cancelled');
-      } else {
-        Alert.alert('Google Login Error', error.message);
-      }
     } finally {
       setIsLoading(false);
     }
@@ -155,15 +116,9 @@ export default function Login() {
             <Text style={styles.loadingText}>Loading...</Text>
           </View>
         ) : (
-          <>
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-              <Text style={styles.buttonText}>Login</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
-              <Text style={styles.buttonText}>Sign in with Google</Text>
-            </TouchableOpacity>
-          </>
+          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+            <Text style={styles.buttonText}>Login</Text>
+          </TouchableOpacity>
         )}
         <TouchableOpacity
           style={styles.loginLink}
@@ -238,13 +193,6 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     backgroundColor: '#A16EFF',
-    padding: 15,
-    borderRadius: 15,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  googleButton: {
-    backgroundColor: '#DB4437',
     padding: 15,
     borderRadius: 15,
     alignItems: 'center',

@@ -47,7 +47,7 @@ export default function AppointmentDetails() {
 
   const timeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
   const defaultImage = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
-  const BASE_URL = 'http://192.168.200.37:8005';
+  const BASE_URL = 'https://backendsalon.pragyacode.com';
   const RAZORPAY_KEY = RAZORPAY_KEY_ID;
 
   useEffect(() => {

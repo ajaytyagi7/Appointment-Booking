@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LucideIcon, Home as HomeIcon, Calendar, User } from 'lucide-react-native';
 
 // Configurable base URL for API
-const BASE_URL = 'http://192.168.200.37:8005';
+const BASE_URL = 'https://backendsalon.pragyacode.com';
 export default function Appointment() {
   const navigation = useNavigation();
   const [appointments, setAppointments] = useState([]);
