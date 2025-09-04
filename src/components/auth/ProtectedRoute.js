@@ -12,7 +12,7 @@ const ProtectedRoute = ({ navigation, children }) => {
       if (token) {
         setIsAuthenticated(true);
       } else {
-        navigation.replace('Login'); // Redirect if not logged in
+        navigation.replace('Login'); 
       }
       setChecking(false);
     };

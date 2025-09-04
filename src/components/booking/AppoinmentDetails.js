@@ -33,7 +33,7 @@ export default function AppointmentDetails() {
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [bookedSlots, setBookedSlots] = useState([]);
-  const [bookedStaff, setBookedStaff] = useState({}); // Track booked staff per slot
+  const [bookedStaff, setBookedStaff] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [customerData, setCustomerData] = useState({
     customerId: null,
@@ -44,13 +44,77 @@ export default function AppointmentDetails() {
   });
   const [imageLoading, setImageLoading] = useState({});
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [openTime, setOpenTime] = useState('10:00');
+  const [closeTime, setCloseTime] = useState('18:00');
+  const [timeSlots, setTimeSlots] = useState([]);
 
-  const timeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
   const defaultImage = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
-  const BASE_URL = 'https://backendsalon.pragyacode.com';
-  const RAZORPAY_KEY = RAZORPAY_KEY_ID;
+  const BASE_URL = 'http://172.24.57.37:8005';
+  const RAZORPAY_KEY = (RAZORPAY_KEY_ID || '').toString().trim() || 'YOUR_RAZORPAY_KEY_ID';
 
+  // Function to generate time slots based on open and close times
+  const generateTimeSlots = (open, close) => {
+    const slots = [];
+    const [openHour, openMinute] = open.split(':').map(Number);
+    const [closeHour, closeMinute] = close.split(':').map(Number);
+    
+    let currentHour = openHour;
+    let currentMinute = openMinute;
+
+    while (currentHour < closeHour || (currentHour === closeHour && currentMinute <= closeMinute)) {
+      slots.push(`${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`);
+      currentHour += 1; // Changed to 60-minute intervals
+      if (currentMinute >= 60) {
+        currentHour += 1;
+        currentMinute -= 60;
+      }
+    }
+    
+    return slots;
+  };
+
+  // Fetch salon operating times
   useEffect(() => {
+    const fetchSalonTimes = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch(`${BASE_URL}/api/public/salons?salonId=${salon.salonId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        console.log('Salon API response:', JSON.stringify(result, null, 2), 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+        
+        if (result) {
+          const newOpenTime = result.openTime || '10:00';
+          const newCloseTime = result.closeTime || '18:00';
+          setOpenTime(newOpenTime);
+          setCloseTime(newCloseTime);
+          setTimeSlots(generateTimeSlots(newOpenTime, newCloseTime));
+        } else {
+          console.warn('No salon data found for salonId:', salon.salonId, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+          setOpenTime('10:00');
+          setCloseTime('18:00');
+          setTimeSlots(generateTimeSlots('10:00', '18:00'));
+        }
+      } catch (error) {
+        console.error('Error fetching salon times:', error.message, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+        setOpenTime('10:00');
+        setCloseTime('18:00');
+        setTimeSlots(generateTimeSlots('10:00', '18:00'));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSalonTimes();
+  }, [salon.salonId]);
+
+  useEffect(() => { 
     const fetchCustomerData = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
@@ -105,7 +169,7 @@ export default function AppointmentDetails() {
         setIsLoading(true);
         const token = await AsyncStorage.getItem('userToken');
         const response = await fetch(
-          `${BASE_URL}/api/booking/check-slot?salonId=${salon.salonId}&bookingDate=${selectedDate}&time=${timeSlots[0]}&serviceCategory=${encodeURIComponent(service.category)}`,
+          `${BASE_URL}/api/booking/check-slot?salonId=${salon.salonId}&bookingDate=${selectedDate}&time=${timeSlots[0] || '10:00'}&serviceCategory=${encodeURIComponent(service.category)}`,
           {
             method: 'GET',
             headers: {
@@ -120,12 +184,11 @@ export default function AppointmentDetails() {
         const result = await response.json();
         console.log('Staff API response:', JSON.stringify(result, null, 2), 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
 
-        // Extract staff from availableStaff in the response
         const formattedStaff = result.availableStaff && Array.isArray(result.availableStaff)
-          ? result.availableStaff.map(staffName => ({
-              name: staffName,
-              image: defaultImage, // Backend does not provide staff images
-              role: service.category // Use service category as role since backend doesn't return specific role
+          ? result.availableStaff.map(staff => ({
+              name: staff.name,
+              image: staff.image || defaultImage,
+              role: service.category
             }))
           : [];
 
@@ -140,11 +203,13 @@ export default function AppointmentDetails() {
         setIsLoading(false);
       }
     };
-    fetchStaff();
-  }, [salon.salonId, service.category, selectedDate]);
+    if (timeSlots.length > 0) {
+      fetchStaff();
+    }
+  }, [salon.salonId, service.category, selectedDate, timeSlots]);
 
   const fetchBookedSlotsAndStaff = async () => {
-    if (!selectedDate) return;
+    if (!selectedDate || timeSlots.length === 0) return;
     console.log('Selected Date:', selectedDate, 'Salon ID:', salon.salonId, 'Service Category:', service.category, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
     try {
       setIsLoading(true);
@@ -172,8 +237,7 @@ export default function AppointmentDetails() {
           bookedSlots.push(time);
         }
 
-        // Populate bookedStaffBySlot with staff not in availableStaff
-        bookedStaffBySlot[time] = staffList.filter(staff => !result.availableStaff.includes(staff.name));
+        bookedStaffBySlot[time] = staffList.filter(staff => !result.availableStaff.some(available => available.name === staff.name));
       }
       console.log('Processed bookedSlots:', bookedSlots, 'BookedStaffBySlot:', bookedStaffBySlot, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
       setBookedSlots(bookedSlots);
@@ -189,7 +253,7 @@ export default function AppointmentDetails() {
 
   useEffect(() => {
     fetchBookedSlotsAndStaff();
-  }, [selectedDate, salon.salonId, service.category]);
+  }, [selectedDate, salon.salonId, service.category, timeSlots]);
 
   const handleDateSelect = (day) => {
     const currentDate = new Date();
@@ -209,7 +273,7 @@ export default function AppointmentDetails() {
   };
 
   const isStaffBooked = (staffName, time) => {
-    if (!time) return false; // If no time is selected, show all staff
+    if (!time) return false;
     return bookedStaff[time]?.some(staff => staff.name === staffName) || false;
   };
 
@@ -236,6 +300,35 @@ export default function AppointmentDetails() {
         navigation.navigate('Login');
         return;
       }
+
+      if (!customerData.customerName || !customerData.email || !customerData.mobileNumber) {
+        console.error('Incomplete customer data at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+        Alert.alert('Error', 'Please complete your profile with name, email, and mobile number.');
+        navigation.navigate('Profile');
+        return;
+      }
+
+      const slotCheckResponse = await fetch(
+        `${BASE_URL}/api/booking/check-slot?salonId=${salon.salonId}&bookingDate=${selectedDate}&time=${selectedTime}&serviceCategory=${encodeURIComponent(service.category)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+      const slotCheckResult = await slotCheckResponse.json();
+      console.log('Slot availability check result (cash):', slotCheckResult, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+
+      if (!slotCheckResponse.ok || !slotCheckResult.isAvailable || !slotCheckResult.availableStaff.some(staff => staff.name === selectedStaff.name)) {
+        Alert.alert('Booking Error', 'The selected staff is no longer available for this time slot. Please select a different time or staff member.');
+        await fetchBookedSlotsAndStaff();
+        setSelectedTime('');
+        setSelectedStaff(null);
+        return;
+      }
+
       const orderData = {
         salonId: salon.salonId,
         amount: service.price,
@@ -268,14 +361,10 @@ export default function AppointmentDetails() {
       const result = await response.json();
       console.log('Cash payment order response:', result, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
       if (!response.ok) {
-        console.error('Cash payment order creation failed:', response.status, result.error, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-        if (response.status === 401) {
-          Alert.alert('Authentication Error', 'Please log in again.');
-          navigation.navigate('Login');
-        }
         throw new Error(result.error || `HTTP error! status: ${response.status}`);
       }
-      await bookAppointment('cash', null, null);
+
+      await bookAppointment('cash', null, null, null);
     } catch (error) {
       console.error('Error creating cash payment order:', error.message, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
       Alert.alert('Error', error.message || 'Failed to initiate cash payment order. Please try again.');
@@ -302,7 +391,6 @@ export default function AppointmentDetails() {
         return;
       }
 
-      // Check slot availability before initiating payment
       const slotCheckResponse = await fetch(
         `${BASE_URL}/api/booking/check-slot?salonId=${salon.salonId}&bookingDate=${selectedDate}&time=${selectedTime}&serviceCategory=${encodeURIComponent(service.category)}`,
         {
@@ -315,10 +403,7 @@ export default function AppointmentDetails() {
       );
       const slotCheckResult = await slotCheckResponse.json();
       console.log('Slot availability check result:', slotCheckResult, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-      if (!slotCheckResponse.ok) {
-        throw new Error(`HTTP error! status: ${slotCheckResponse.status}`);
-      }
-      if (!slotCheckResult.isAvailable || !slotCheckResult.availableStaff.includes(selectedStaff.name)) {
+      if (!slotCheckResponse.ok || !slotCheckResult.isAvailable || !slotCheckResult.availableStaff.some(staff => staff.name === selectedStaff.name)) {
         Alert.alert('Booking Error', 'The selected staff is no longer available for this time slot. Please select a different time or staff member.');
         await fetchBookedSlotsAndStaff();
         setSelectedTime('');
@@ -358,26 +443,35 @@ export default function AppointmentDetails() {
       const result = await response.json();
       console.log('Razorpay order response:', result, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
       if (!response.ok) {
-        console.error('Razorpay order creation failed:', response.status, result.error, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-        if (response.status === 401) {
-          Alert.alert('Authentication Error', 'Please log in again.');
-          navigation.navigate('Login');
-        }
         throw new Error(result.error || `HTTP error! status: ${response.status}`);
       }
       if (result.success) {
+        const keyToUse = (result.keyId && String(result.keyId).trim()) || RAZORPAY_KEY;
+        if (!keyToUse) {
+          console.error('Razorpay key_id missing. Check env RAZORPAY_KEY_ID or backend keyId.');
+          Alert.alert('Payment Setup Error', 'Razorpay key is missing. Please configure RAZORPAY_KEY_ID or return keyId from backend.');
+          return;
+        }
+
+        const amountPaise = parseInt(Number(service.price) * 100, 10);
+        if (!Number.isFinite(amountPaise) || amountPaise <= 0) {
+          console.error('Invalid amount for Razorpay:', result?.order?.amount);
+          Alert.alert('Payment Error', 'Invalid amount for payment.');
+          return;
+        }
+
         const options = {
           description: `${service.name} Appointment`,
           image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80',
           currency: 'INR',
-          key: RAZORPAY_KEY,
-          amount: result.order.amount,
+          key: keyToUse,
+          amount: amountPaise,
           name: salon.salonName,
           order_id: result.razorpayOrderId,
           prefill: {
-            email: customerData.email,
-            contact: customerData.mobileNumber,
-            name: customerData.customerName
+            email: customerData.email || '',
+            contact: customerData.mobileNumber || '',
+            name: customerData.customerName || ''
           },
           theme: { color: '#A16EFF' },
           retry: { enabled: true, max_count: 2 }
@@ -388,12 +482,17 @@ export default function AppointmentDetails() {
           throw error;
         });
         console.log('Razorpay payment response (full):', JSON.stringify(data, null, 2), 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-        if (data && data.razorpay_payment_id && !data.error) {
-          console.log('Payment successful. Payment ID:', data.razorpay_payment_id, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-          await bookAppointment('online', data.razorpay_payment_id, result.razorpayOrderId);
+
+        const paymentIdFromRazorpay = data?.razorpay_payment_id || null;
+        const orderIdFromRazorpay = data?.razorpay_order_id || null;
+        const signatureFromRazorpay = data?.razorpay_signature || null;
+
+        if (paymentIdFromRazorpay && orderIdFromRazorpay) {
+          console.log('Payment successful. Payment ID:', paymentIdFromRazorpay, 'Order ID:', orderIdFromRazorpay, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+          await bookAppointment('online', paymentIdFromRazorpay, orderIdFromRazorpay, signatureFromRazorpay);
         } else {
-          console.error('Payment failed or cancelled. Response:', JSON.stringify(data, null, 2), 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-          Alert.alert('Payment Failed', 'Payment was cancelled or failed. Details: ' + (data?.error ? data.error.description : 'No payment ID received'));
+          console.error('Payment success callback missing IDs. Response:', JSON.stringify(data, null, 2), 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+          Alert.alert('Payment Failed', 'Did not receive valid payment details from Razorpay.');
         }
       } else {
         throw new Error(result.error || 'Failed to create Razorpay order');
@@ -406,7 +505,7 @@ export default function AppointmentDetails() {
     }
   };
 
-  const bookAppointment = async (paymentMethod, razorpayPaymentId = null, razorpayOrderId = null) => {
+  const bookAppointment = async (paymentMethod, razorpayPaymentId = null, razorpayOrderId = null, razorpaySignature = null) => {
     try {
       setIsLoading(true);
       const token = await AsyncStorage.getItem('userToken');
@@ -428,10 +527,7 @@ export default function AppointmentDetails() {
       );
       const slotCheckResult = await slotCheckResponse.json();
       console.log('Slot availability check result:', slotCheckResult, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-      if (!slotCheckResponse.ok) {
-        throw new Error(`HTTP error! status: ${slotCheckResponse.status}`);
-      }
-      if (!slotCheckResult.isAvailable) {
+      if (!slotCheckResponse.ok || !slotCheckResult.isAvailable) {
         Alert.alert('Booking Error', 'The selected time slot is no longer available. Please choose a different time.');
         await fetchBookedSlotsAndStaff();
         setSelectedTime('');
@@ -461,7 +557,8 @@ export default function AppointmentDetails() {
         address: customerData.address || '',
         paymentMethod: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'online' ? 'Razorpay' : 'unknown',
         razorpayOrderId: paymentMethod === 'cash' ? null : razorpayOrderId,
-        razorpayPaymentId: paymentMethod === 'cash' ? null : razorpayPaymentId
+        razorpayPaymentId: paymentMethod === 'cash' ? null : razorpayPaymentId,
+        razorpaySignature: paymentMethod === 'cash' ? null : razorpaySignature,
       };
       console.log('Sending appointment data to backend:', JSON.stringify(appointmentData, null, 2), 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
       const response = await fetch(`${BASE_URL}/api/booking`, {
@@ -926,3 +1023,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+
+

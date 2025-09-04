@@ -8,6 +8,8 @@ import {
   Modal,
   Alert,
   ScrollView,
+  TextInput,
+   ActivityIndicator,
 } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,16 +22,20 @@ import {
   LucideBell,
   LucideHelpCircle,
   LucideX,
+  LucideEdit,
 } from 'lucide-react-native';
 import { LucideIcon, Home as HomeIcon, Calendar, User } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
+import axios from 'axios';
 
 const { width } = Dimensions.get('window');
-const BASE_URL = 'https://backendsalon.pragyacode.com';
+const BASE_URL = 'http://172.24.57.37:8005';
 
 export default function Profile({ navigation }) {
   const mainNavigation = useNavigation();
   const [modalVisible, setModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [fullName, setFullName] = useState('Guest');
   const [mobileNumber, setMobileNumber] = useState('N/A');
@@ -41,6 +47,13 @@ export default function Profile({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeNav, setActiveNav] = useState('Profile');
+  // Edit form states
+  const [editFullName, setEditFullName] = useState('');
+  const [editMobileNumber, setEditMobileNumber] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editGender, setEditGender] = useState('Male');
+  const [editAddress, setEditAddress] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -93,6 +106,12 @@ export default function Profile({ navigation }) {
           setAddress(customer.address || 'N/A');
           setRoleId(customer.roleId || 'N/A');
           setCustomerId(customer.customerId || 'N/A');
+          // Initialize edit form states
+          setEditFullName(customer.fullName || '');
+          setEditMobileNumber(customer.mobileNumber || '');
+          setEditEmail(customer.email || '');
+          setEditGender(customer.gender || 'Male');
+          setEditAddress(customer.address || '');
         } else {
           setEmail('You are not logged in');
           setIsLoggedIn(false);
@@ -119,6 +138,10 @@ export default function Profile({ navigation }) {
     setSelectedItem(null);
   };
 
+  const closeEditModal = () => {
+    setEditModalVisible(false);
+  };
+
   const performLogout = async () => {
     try {
       await AsyncStorage.removeItem('userToken');
@@ -128,6 +151,64 @@ export default function Profile({ navigation }) {
     } catch (error) {
       console.error('Logout error:', error.message, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
       Alert.alert('Error', 'Logout failed. Please try again.');
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    const trimmedFullName = editFullName.trim();
+    const trimmedMobileNumber = editMobileNumber.trim();
+    const trimmedEmail = editEmail.trim();
+    const trimmedAddress = editAddress.trim();
+
+    if (
+      !trimmedFullName ||
+      !trimmedMobileNumber ||
+      !trimmedEmail ||
+      !editGender ||
+      !trimmedAddress
+    ) {
+      Alert.alert('Error', 'Please fill in all fields correctly.');
+      return;
+    }
+
+    setEditLoading(true);
+
+    try {
+      const storedToken = await AsyncStorage.getItem('userToken');
+      if (!storedToken) {
+        Alert.alert('Error', 'No authentication token found. Please log in again.');
+        await performLogout();
+        return;
+      }
+
+     const response = await axios.post(`${BASE_URL}/api/customer-app/update`, {
+        fullName: trimmedFullName,
+        mobileNumber: trimmedMobileNumber,
+        email: trimmedEmail,
+        gender: editGender,
+        address: trimmedAddress,
+      }, {
+        headers: {
+          Authorization: `Bearer ${storedToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Update local state with new data
+      setFullName(trimmedFullName);
+      setMobileNumber(trimmedMobileNumber);
+      setEmail(trimmedEmail);
+      setGender(editGender);
+      setAddress(trimmedAddress);
+
+      setEditLoading(false);
+      Alert.alert('Success', 'Profile updated successfully!');
+      setEditModalVisible(false);
+    } catch (error) {
+      setEditLoading(false);
+      const errorMessage =
+        error.response?.data?.error || 'Something went wrong. Please try again.';
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -151,7 +232,7 @@ export default function Profile({ navigation }) {
       case 'Payment Methods':
         return {
           title: 'Payment Methods',
-          details: `UPI: N/A\nNet Banking: Axis Bank`,
+          details: `UPI: Google Pay, PhonePe, Paytm\nNet Banking: Debit Card, Credit Card\nCash: Available`,
         };
       default:
         return { title: 'Details', details: 'No data available' };
@@ -174,6 +255,13 @@ export default function Profile({ navigation }) {
           <View style={styles.textContainer}>
             <Text style={styles.name}>{isLoading ? 'Loading...' : fullName}</Text>
             <Text style={styles.email}>{isLoading ? 'Loading...' : email}</Text>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => setEditModalVisible(true)}
+            >
+              <LucideEdit size={20} color="#A16EFF" />
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -259,6 +347,84 @@ export default function Profile({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={closeEditModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.editModalContent}>
+            <TouchableOpacity style={styles.closeButton} onPress={closeEditModal}>
+              <LucideX color="#6B46C1" size={24} />
+            </TouchableOpacity>
+            <ScrollView contentContainerStyle={styles.editContentContainer}>
+              <Text style={styles.topText}>Edit Profile</Text>
+              <Text style={styles.subText}>Update your personal information</Text>
+
+              <TextInput
+                style={styles.input}
+                value={editFullName}
+                onChangeText={setEditFullName}
+                placeholder="Full Name"
+                placeholderTextColor="#999"
+              />
+
+              <TextInput
+                style={styles.input}
+                value={editMobileNumber}
+                onChangeText={setEditMobileNumber}
+                placeholder="Mobile Number"
+                placeholderTextColor="#999"
+                keyboardType="phone-pad"
+              />
+
+              <TextInput
+                style={styles.input}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="Email"
+                placeholderTextColor="#999"
+                keyboardType="email-address"
+              />
+
+              <View style={styles.genderContainer}>
+                <TouchableOpacity
+                  style={[styles.genderButton, editGender === 'Male' && styles.selectedGender]}
+                  onPress={() => setEditGender('Male')}
+                >
+                  <Text style={styles.genderText}>Male</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.genderButton, editGender === 'Female' && styles.selectedGender]}
+                  onPress={() => setEditGender('Female')}
+                >
+                  <Text style={styles.genderText}>Female</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={styles.input}
+                value={editAddress}
+                onChangeText={setEditAddress}
+                placeholder="Address"
+                placeholderTextColor="#999"
+              />
+
+              {editLoading ? (
+                <ActivityIndicator size="large" color="#A16EFF" style={{ marginTop: 20 }} />
+              ) : (
+                <TouchableOpacity onPress={handleUpdateProfile} style={styles.buttonWrapper}>
+                  <LinearGradient colors={['#dca5f1ff', '#A16EFF']} style={styles.button}>
+                    <Text style={styles.buttonText}>Update Profile</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -324,20 +490,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   name: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: 'semibold',
     color: '#2E2E2E',
   },
   email: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#7F8C8D',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    backgroundColor: '#F2F2F2',
+    padding: 10,
+    borderRadius: 8,
+  },
+  editButtonText: {
+    color: '#A16EFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 5,
   },
   menu: {
     paddingHorizontal: 20,
     marginTop: 20,
   },
   menuHeader: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#444',
     marginVertical: 10,
@@ -353,7 +533,7 @@ const styles = StyleSheet.create({
   },
   menuText: {
     marginLeft: 15,
-    fontSize: 16,
+    fontSize: 14,
     color: '#2D3748',
     fontWeight: '600',
     textTransform: 'capitalize',
@@ -380,6 +560,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     elevation: 5,
   },
+  editModalContent: {
+    width: '90%',
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    elevation: 5,
+    padding: 20,
+  },
+  editContentContainer: {
+    paddingBottom: 20,
+  },
   closeButton: {
     alignSelf: 'flex-end',
   },
@@ -405,5 +595,60 @@ const styles = StyleSheet.create({
     color: '#800080',
     textDecorationLine: 'underline',
     marginHorizontal: 5,
+  },
+  topText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#333',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  subText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    backgroundColor: '#F2F2F2',
+    padding: 14,
+    borderRadius: 10,
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 15,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    marginBottom: 15,
+  },
+  genderButton: {
+    flex: 1,
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  selectedGender: {
+    borderColor: '#A16EFF',
+    backgroundColor: '#ffeaea',
+  },
+  genderText: {
+    color: '#333',
+  },
+  buttonWrapper: {
+    marginTop: 10,
+  },
+  button: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

@@ -6,7 +6,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LucideIcon, Home as HomeIcon, Calendar, User } from 'lucide-react-native';
 
 // Configurable base URL for API
-const BASE_URL = 'https://backendsalon.pragyacode.com';
+const BASE_URL = 'http://172.24.57.37:8005';
+
 export default function Appointment() {
   const navigation = useNavigation();
   const [appointments, setAppointments] = useState([]);
@@ -14,6 +15,7 @@ export default function Appointment() {
   const [token, setToken] = useState(null);
   const [activeNav, setActiveNav] = useState('Appointment');
   const [activeTab, setActiveTab] = useState('Upcoming');
+  const [staffImages, setStaffImages] = useState({}); // State to store staff images
 
   useEffect(() => {
     const fetchAppointments = async () => {
@@ -112,6 +114,40 @@ export default function Appointment() {
         const appointmentsData = Array.isArray(data) ? data : (data.appointments || data.data || []);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
+        // Fetch staff images for all salons involved in appointments
+        const salonIds = [...new Set(appointmentsData.map(app => app.salonId))]; // Get unique salon IDs
+        const staffImageMap = {};
+
+        for (const salonId of salonIds) {
+          try {
+            const salonResponse = await fetch(`${BASE_URL}/api/public/salons?salonId=${encodeURIComponent(salonId)}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 10000,
+            });
+
+            if (!salonResponse.ok) {
+              console.error(`Error fetching salon data for salonId ${salonId}: Status ${salonResponse.status}, at`, new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+              continue;
+            }
+
+            const salonData = await salonResponse.json();
+            console.log(`Salon Data for salonId ${salonId}:`, JSON.stringify(salonData, null, 2), 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+
+            if (salonData && salonData.staff) {
+              salonData.staff.forEach(staff => {
+                staffImageMap[`${salonId}_${staff.name}`] = staff.image || null;
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching staff images for salonId ${salonId}:`, error.message, 'at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+          }
+        }
+
+        setStaffImages(staffImageMap);
 
         const processedAppointments = appointmentsData.map((appointment) => {
           const bookingDate = new Date(appointment.bookingDate);
@@ -237,42 +273,47 @@ export default function Appointment() {
             <Text style={styles.serviceText}>No {activeTab.toLowerCase()} appointments available</Text>
           </View>
         ) : (
-          filteredAppointments.map((appointment, index) => (
-            <View key={index} style={styles.appointmentCard}>
-              <Text style={styles.serviceText}>{appointment.services[0]?.name || 'N/A'}</Text>
-              <Text style={styles.priceText}>₹{appointment.services[0]?.price || 'N/A'}</Text>
-              <View style={styles.dateTimeContainer}>
-                <Text style={styles.dateText}>
-                  📅 {new Date(appointment.bookingDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
-                </Text>
-                <Text style={styles.timeText}>⏰ {appointment.time || 'N/A'}</Text>
-              </View>
-              <View style={styles.stylistContainer}>
-                <Image
-                  source={{
-                    uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80',
-                  }}
-                  style={styles.stylistImage}
-                  onError={() => console.error('Failed to load stylist image at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }))}
-                />
-                <View>
-                  <Text style={styles.stylistLabel}>Your Stylist</Text>
-                  <Text style={styles.stylistName}>{appointment.staff || 'N/A'}</Text>
+          filteredAppointments.map((appointment, index) => {
+            const staffImageKey = `${appointment.salonId}_${appointment.staff}`;
+            const staffImage = staffImages[staffImageKey] 
+              ? `${BASE_URL}${staffImages[staffImageKey]}` 
+              : 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80';
+
+            return (
+              <View key={index} style={styles.appointmentCard}>
+                <Text style={styles.serviceText}>{appointment.services[0]?.name || 'N/A'}</Text>
+                <Text style={styles.priceText}>₹{appointment.services[0]?.price || 'N/A'}</Text>
+                <View style={styles.dateTimeContainer}>
+                  <Text style={styles.dateText}>
+                    📅 {new Date(appointment.bookingDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                  </Text>
+                  <Text style={styles.timeText}>⏰ {appointment.time || 'N/A'}</Text>
+                </View>
+                <View style={styles.stylistContainer}>
+                  <Image
+                    source={{ uri: staffImage }}
+                    style={styles.stylistImage}
+                    onError={() => console.error(`Failed to load stylist image for ${appointment.staff} at`, new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }))}
+                  />
+                  <View>
+                    <Text style={styles.stylistLabel}>Your Stylist</Text>
+                    <Text style={styles.stylistName}>{appointment.staff || 'N/A'}</Text>
+                  </View>
+                </View>
+                {appointment.status === 'Upcoming' && (
+                  <TouchableOpacity style={styles.cancelButton} onPress={() => handleCancelAppointment(appointment.id)}>
+                    <Text style={styles.cancelButtonText}>Cancel Appointment</Text>
+                  </TouchableOpacity>
+                )}
+                <View style={[styles.statusTag, { backgroundColor: 
+                  appointment.status === 'Upcoming' ? '#D7B9D5' : 
+                  appointment.status === 'Past' ? '#B0C4DE' : '#FFB6C1' 
+                }]}>
+                  <Text style={styles.upcomingText}>{appointment.status}</Text>
                 </View>
               </View>
-              {appointment.status === 'Upcoming' && (
-                <TouchableOpacity style={styles.cancelButton} onPress={() => handleCancelAppointment(appointment.id)}>
-                  <Text style={styles.cancelButtonText}>Cancel Appointment</Text>
-                </TouchableOpacity>
-              )}
-              <View style={[styles.statusTag, { backgroundColor: 
-                appointment.status === 'Upcoming' ? '#D7B9D5' : 
-                appointment.status === 'Past' ? '#B0C4DE' : '#FFB6C1' 
-              }]}>
-                <Text style={styles.upcomingText}>{appointment.status}</Text>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
       <View style={styles.navBar}>
@@ -313,12 +354,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E0E0E0',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: 'semibold',
     color: '#2E2E2E',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 15,
     color: '#7F8C8D',
     marginVertical: 5,
   },

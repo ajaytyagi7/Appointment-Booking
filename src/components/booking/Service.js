@@ -14,7 +14,7 @@ const serviceImages = {
   pedicure: 'https://d2p5rd30inmhrb.cloudfront.net/fe/Blogs-VLCC/core-blogs/30/1.jpeg',
   manicure: 'https://cdn.shopify.com/s/files/1/0555/7148/0761/files/different-types-of-nail-extensions-1_600x600.png?v=1699409874',
   Wax: 'https://5.imimg.com/data5/TU/PG/VV/ANDROID-73928938/product-jpeg-1000x1000.jpg',
-  Detan : 'https://www.bubblesindia.com/wp-content/uploads/2019/03/Bubbles_Services_Banner_Detan.jpg',
+  Detan: 'https://www.bubblesindia.com/wp-content/uploads/2019/03/Bubbles_Services_Banner_Detan.jpg',
   Threading: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRSgdIufPnAhlcdJS0AfHx9UtYBJl1wRhGfUA&s',
   HairColoring: 'https://media.istockphoto.com/id/1326466262/photo/eyebrow-threading.jpg?s=612x612&w=0&k=20&c=1b3d7g4f6a5j8Z9sX1z2y3J4Y5v7m8e9n6F5k5l5k5k=',
   HairStyling: 'https://media.istockphoto.com/id/1326466262/photo/eyebrow-threading.jpg?s=612x612&w=0&k=20&c=1b3d7g4f6a5j8Z9sX1z2y3J4Y5v7m8e9n6F5k5l5k5k=',
@@ -32,7 +32,7 @@ const serviceImages = {
   HairLowlights: 'https://media.istockphoto.com/id/1326466262/photo/eyebrow-threading.jpg?s=612x612&w=0&k=20&c=1b3d7g4f6a5j8Z9sX1z2y3J4Y5v7m8e9n6F5k5l5k5k=',
   HairUpdo: 'https://media.istockphoto.com/id/1326466262/photo/eyebrow-threading.jpg?s=612x612&w=0&k=20&c=1b3d7g4f6a5j8Z9sX1z2y3J4Y5v7m8e9n6F5k5l5k5k=',
   HairAccessories: 'https://media.istockphoto.com/id/1326466262/photo/eyebrow-threading.jpg?s=612x612&w=0&k=20&c=1b3d7g4f6a5j8Z9sX1z2y3J4Y5v7m8e9n6F5k5l5k5k=',
-  BodyPolishing: 'https://media.istockphoto.com/id/477840082/photo/body-polish.jpg?s=612x612&w=0&k=20&c=0CLT-fpK7ZqBDPslTRqdMFoxZAZTygX7i5WlQKU-6nQ=',
+  BodyPolishing: 'https://media.istockphoto.com/id/477840082/photo/body-polish.jpg?s=612x612&w=0&k=20&c=aPb0QVo0FqR_dJ_Yapv5zz47C7U0uUtgNODDLZ0gAhI=',
   BodyWrap: 'https://media.istockphoto.com/id/177440706/photo/seaweed-body-wrap-treatment-at-a-spa.jpg?s=612x612&w=0&k=20&c=YPd5mD7zdyjQXEVwqU9_EudIib1H0bmIfm9KAYRiNkM=',
   Bleach: 'https://media.istockphoto.com/id/1152601022/photo/woman-getting-face-bleaching.jpg?s=612x612&w=0&k=20&c=gzCfhxBChROuXrw5CQJZEG03V0rPzN0iM6TMEZUZBE8=',
   HairSpa: 'https://media.istockphoto.com/id/1208014144/photo/young-woman-having-hair-washed-in-salon.jpg?s=612x612&w=0&k=20&c=IS_YgJuvNVyWIXr1qZEvK_Nr9jTDY2u2kqpt3XeIvqM=',
@@ -75,34 +75,31 @@ export default function Service() {
     if (!serviceName || typeof serviceName !== 'string') {
       return serviceImages.Other;
     }
-    // Split service name into words and convert to lowercase for comparison
     const words = serviceName.toLowerCase().split(' ');
-    // Check if any word matches a key in serviceImages
     for (const word of words) {
       const matchedKey = Object.keys(serviceImages).find(key => key.toLowerCase() === word);
       if (matchedKey) {
         return serviceImages[matchedKey];
       }
     }
-    // If no match, return the "Other" image
     return serviceImages.Other;
   };
 
-  // Static image URL for salon (fallback)
-  const staticServiceImage = 'https://img.freepik.com/premium-photo/pattern-various-shaving-bauty-care-accessories-men-gray-background_93675-166547.jpg';
-
-  const getSalonImageUrl = () => {
-    // Check if salonImages is a valid URL and starts with the correct domain
-    if (salon.salonImages && typeof salon.salonImages === 'string' && salon.salonImages.startsWith('https://backendsalon.pragyacode.com')) {
-      return salon.salonImages; // Use the provided URL directly
+  // Function to get salon image URL (same as Home page)
+  const getSalonImageUrl = (salonImages) => {
+    if (!salonImages || salonImages === '') {
+      return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80';
     }
-    return staticServiceImage;
+    if (salonImages.startsWith('http://') || salonImages.startsWith('https://')) {
+      return salonImages;
+    }
+    return `http://172.24.57.37:8005${salonImages}`;
   };
 
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const response = await fetch(`https://backendsalon.pragyacode.com/api/public/salons`);
+        const response = await fetch(`http://172.24.57.37:8005/api/public/salons`);
         const data = await response.json();
         const selectedSalon = data.find(s => s.salonId === salon.salonId);
         setServices(selectedSalon?.services || []);
@@ -116,13 +113,13 @@ export default function Service() {
   }, [salon.salonId]);
 
   const rating = 4.5;
-  const salonDetails = `🌟 Welcome to ${salon.salonName}, a premier grooming haven renowned for its luxurious ambiance and exceptional service. Established with a passion to elevate men's styling, we blend modern techniques with a relaxing atmosphere. Our expert stylists use premium products to craft personalized experiences. Nestled in the vibrant heart of ${salon.location?.city || 'the city'}, we pride ourselves on being a top choice for locals and travelers seeking quality grooming. 🌿`;
+  const salonDetails = ` Welcome to ${salon.salonName}, a premier grooming haven renowned for its luxurious ambiance and exceptional service. Established with a passion to elevate men's styling, we blend modern techniques with a relaxing atmosphere. Our expert stylists use premium products to craft personalized experiences. Nestled in the vibrant heart of ${salon.location?.city || 'the city'}, we pride ourselves on being a top choice for locals and travelers seeking quality grooming.`;
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
-          <Image source={{ uri: getSalonImageUrl() }} style={styles.salonImage} resizeMode="cover" />
+          <Image source={{ uri: getSalonImageUrl(salon.salonImages) }} style={styles.salonImage} resizeMode="cover" />
           <Text style={styles.salonName}>{salon.salonName}</Text>
           <Text style={styles.salonAddress}>
             {salon.location ? `${salon.location.addressLine1}, ${salon.location.city}` : 'No address'}
@@ -141,21 +138,19 @@ export default function Service() {
               <Text style={styles.serviceText}>No services available</Text>
             ) : (
               services.map((service, index) => (
-                <TouchableOpacity
-                  style={styles.serviceCard}
-                  key={index}
-                  onPress={() => navigation.navigate('AppointmentDetails', { service, salon })}
-                >
+                <View style={styles.serviceItem} key={index}>
                   <Image source={{ uri: getServiceImage(service.name) }} style={styles.serviceImage} resizeMode="cover" />
-                  <Text style={styles.serviceText}>{service.name}</Text>
-                  <Text style={styles.servicePrice}>₹{service.price}</Text>
-                  <TouchableOpacity
-                    style={styles.cardBookButton}
-                    onPress={() => navigation.navigate('AppointmentDetails', { service, salon })}
-                  >
-                    <Text style={styles.cardBookText}>Book Now</Text>
-                  </TouchableOpacity>
-                </TouchableOpacity>
+                  <View style={styles.serviceInfo}>
+                    <Text style={styles.serviceText}>{service.name}</Text>
+                    <Text style={styles.servicePrice}>₹{service.price}</Text>
+                    <TouchableOpacity
+                      style={styles.cardAddButton}
+                      onPress={() => navigation.navigate('AppointmentDetails', { service, salon })}
+                    >
+                      <Text style={styles.cardAddText}>Add</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               ))
             )}
           </View>
@@ -185,18 +180,22 @@ const styles = StyleSheet.create({
   salonImage: {
     width: '100%',
     height: 250,
-    marginTop: 20,
+    borderRadius: 15,
   },
   salonName: {
-    fontSize: 24,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#2E2E2E',
-    marginVertical: 10,
+    marginVertical: 15,
+    textAlign: 'center',
+    
   },
   salonAddress: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#7F8C8D',
     marginBottom: 10,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   ratingContainer: {
     backgroundColor: '#FFF3E0',
@@ -205,17 +204,21 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   ratingText: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#F4A261',
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   detailsText: {
-    fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
-    marginTop: 15,
-    lineHeight: 24,
-    fontWeight: '600',
-  },
+  fontSize: 16,
+  color: '#666666',
+  textAlign: 'justify',   // 👈 equal spacing dono side
+  marginTop: 15,
+  lineHeight: 24,
+  fontWeight: '400',
+  paddingHorizontal: 15,  // 👈 thoda zyada padding rakho
+},
+
   servicesSection: {
     padding: 20,
     backgroundColor: '#FFFFFF',
@@ -226,52 +229,51 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2E2E2E',
     marginBottom: 10,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   servicesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    flexWrap: 'wrap',
     marginHorizontal: 10,
   },
-  serviceCard: {
-    width: '45%',
+  serviceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: 25, // Increased margin for more gap between items
   },
-  serviceImage: {
-    width: '100%',
-    height: 150,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+  serviceInfo: {
+    flex: 1,
+    paddingLeft: 10, // Adjusted for image-first layout
   },
   serviceText: {
     fontSize: 16,
-    margin: 10,
     color: '#2E2E2E',
+    fontWeight: 'semibold',
+    marginBottom: 5,
   },
   servicePrice: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#A16EFF',
-    fontWeight: 'bold',
-    marginLeft: 10,
+    fontWeight: 'semibold',
     marginBottom: 10,
   },
-  cardBookButton: {
-    backgroundColor: '#A16EFF',
-    padding: 8,
-    borderRadius: 5,
-    alignItems: 'center',
-    margin: 10,
+  serviceImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 15,
   },
-  cardBookText: {
+  cardAddButton: {
+    backgroundColor: '#A16EFF',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+  },
+  cardAddText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   errorContainer: {
@@ -286,6 +288,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,
+    paddingHorizontal: 20,
   },
   backButton: {
     backgroundColor: '#A16EFF',

@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { MapPin } from 'lucide-react-native';
 import axios from 'axios';
 import debounce from 'lodash.debounce';
 import Geolocation from '@react-native-community/geolocation';
@@ -222,12 +223,17 @@ const LiveLocationScreen = ({ navigation }) => {
       </Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TextInput
-        placeholder="Search your area in India..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        style={styles.input}
-      />
+      <View style={styles.inputContainer}>
+        <TextInput
+          placeholder="Search your area in India..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={styles.input}
+        />
+        <TouchableOpacity style={styles.currentLocationButton} onPress={fetchCurrentLocation}>
+          <MapPin size={20} color="#A16EFF" />
+        </TouchableOpacity>
+      </View>
 
       <FlatList
         data={suggestions}
@@ -261,13 +267,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
   label: { fontWeight: 'bold', fontSize: 16, color: '#333', marginTop: 30 },
   error: { color: 'red', marginBottom: 8 },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   input: {
+    flex: 1,
     borderWidth: 1,
     borderColor: '#ccc',
     padding: 10,
-    marginBottom: 10,
     borderRadius: 5,
     backgroundColor: '#f9f9f9',
+    marginRight: 10,
+  },
+  currentLocationButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 25,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#A16EFF',
   },
   suggestionItem: { padding: 10, borderBottomWidth: 1, borderColor: '#eee' },
   suggestionText: { fontSize: 14, color: '#333' },

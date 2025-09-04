@@ -13,9 +13,10 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 import { LucideEye, LucideEyeOff } from 'lucide-react-native';
 
-const API_URL = 'https://backendsalon.pragyacode.com/api/customer-app/register';
+const API_URL = 'http://172.24.57.37:8005/api/customer-app/register';
 
 export default function Register() {
   const [fullName, setFullName] = useState('');
@@ -31,7 +32,6 @@ export default function Register() {
   const navigation = useNavigation();
 
   const handleRegister = async () => {
-    // Trim inputs to prevent spaces being considered valid
     const trimmedFullName = fullName.trim();
     const trimmedMobileNumber = mobileNumber.trim();
     const trimmedEmail = email.trim();
@@ -39,7 +39,6 @@ export default function Register() {
     const trimmedPassword = password.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
 
-    // Validate all fields are non-empty
     if (
       !trimmedFullName ||
       !trimmedMobileNumber ||
@@ -53,7 +52,6 @@ export default function Register() {
       return;
     }
 
-    // Validate password match
     if (trimmedPassword !== trimmedConfirmPassword) {
       Alert.alert('Error', 'Passwords do not match.');
       return;
@@ -72,180 +70,220 @@ export default function Register() {
         confirmPassword: trimmedConfirmPassword,
       });
 
-      console.log('Register response:', response.data);
-
-      // Store the customerId in AsyncStorage
       await AsyncStorage.setItem('customerId', response.data.customerId);
-
       setLoading(false);
       Alert.alert('Success', 'Registration successful!');
       navigation.navigate('Home');
     } catch (error) {
       setLoading(false);
-      const errorMessage = error.response?.data?.error || 'Something went wrong. Please try again.';
-      console.log('Register error:', error.response?.data || error.message);
+      const errorMessage =
+        error.response?.data?.error || 'Something went wrong. Please try again.';
       Alert.alert('Error', errorMessage);
     }
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.topText}>Create Account</Text>
+      <ScrollView contentContainerStyle={styles.contentContainer}>
+        <Text style={styles.topText}>Create New Account</Text>
         <Text style={styles.subText}>Sign up to book your beauty appointments</Text>
-        <View style={styles.form}>
-          {/* Full Name */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Enter your full name"
-              placeholderTextColor="#666"
-              autoCapitalize="words"
-            />
-          </View>
-          {/* Mobile */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Mobile Number</Text>
-            <TextInput
-              style={styles.input}
-              value={mobileNumber}
-              onChangeText={setMobileNumber}
-              placeholder="Enter your mobile number"
-              placeholderTextColor="#666"
-              keyboardType="phone-pad"
-            />
-          </View>
-          {/* Email */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email"
-              placeholderTextColor="#666"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-          {/* Gender */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Gender</Text>
-            <View style={styles.genderContainer}>
-              <TouchableOpacity
-                style={[styles.genderButton, gender === 'Male' && styles.selectedGender]}
-                onPress={() => setGender('Male')}
-              >
-                <Text style={styles.genderText}>Male</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.genderButton, gender === 'Female' && styles.selectedGender]}
-                onPress={() => setGender('Female')}
-              >
-                <Text style={styles.genderText}>Female</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* Address */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Address</Text>
-            <TextInput
-              style={styles.input}
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Enter your address"
-              placeholderTextColor="#666"
-              autoCapitalize="sentences"
-            />
-          </View>
-          {/* Password */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Create a password"
-                placeholderTextColor="#666"
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity
-                style={styles.eyeIcon}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <LucideEyeOff color="#666" size={20} /> : <LucideEye color="#666" size={20} />}
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* Confirm Password */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Confirm Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Confirm your password"
-                placeholderTextColor="#666"
-                secureTextEntry={!showConfirmPassword}
-              />
-              <TouchableOpacity
-                style={styles.eyeIcon}
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
-                {showConfirmPassword ? <LucideEyeOff color="#666" size={20} /> : <LucideEye color="#666" size={20} />}
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* Register Button */}
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#A16EFF" />
-              <Text style={styles.loadingText}>Loading...</Text>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.createButton} onPress={handleRegister}>
-              <Text style={styles.buttonText}>Create Account</Text>
-            </TouchableOpacity>
-          )}
-          {/* Login Link */}
+
+        {/* Full Name */}
+        <TextInput
+          style={styles.input}
+          value={fullName}
+          onChangeText={setFullName}
+          placeholder="Full Name"
+          placeholderTextColor="#999"
+        />
+
+        {/* Mobile */}
+        <TextInput
+          style={styles.input}
+          value={mobileNumber}
+          onChangeText={setMobileNumber}
+          placeholder="Mobile Number"
+          placeholderTextColor="#999"
+          keyboardType="phone-pad"
+        />
+
+        {/* Email */}
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Email"
+          placeholderTextColor="#999"
+          keyboardType="email-address"
+        />
+
+        {/* Gender */}
+        <View style={styles.genderContainer}>
           <TouchableOpacity
-            style={styles.loginLink}
-            onPress={() => navigation.navigate('Login')}
+            style={[styles.genderButton, gender === 'Male' && styles.selectedGender]}
+            onPress={() => setGender('Male')}
           >
-            <Text style={styles.linkText}>Already have an account? Sign In</Text>
+            <Text style={styles.genderText}>Male</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.genderButton, gender === 'Female' && styles.selectedGender]}
+            onPress={() => setGender('Female')}
+          >
+            <Text style={styles.genderText}>Female</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Address */}
+        <TextInput
+          style={styles.input}
+          value={address}
+          onChangeText={setAddress}
+          placeholder="Address"
+          placeholderTextColor="#999"
+        />
+
+        {/* Password */}
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Password"
+            placeholderTextColor="#999"
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            {showPassword ? (
+              <LucideEyeOff size={20} color="#666" />
+            ) : (
+              <LucideEye size={20} color="#666" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Confirm Password */}
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Confirm Password"
+            placeholderTextColor="#999"
+            secureTextEntry={!showConfirmPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            {showConfirmPassword ? (
+              <LucideEyeOff size={20} color="#666" />
+            ) : (
+              <LucideEye size={20} color="#666" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Register Button */}
+        {loading ? (
+          <ActivityIndicator size="large" color="#A16EFF" style={{ marginTop: 20 }} />
+        ) : (
+          <TouchableOpacity onPress={handleRegister} style={styles.buttonWrapper}>
+            <LinearGradient colors={['#dca5f1ff', '#A16EFF']} style={styles.button}>
+              <Text style={styles.buttonText}>Sign Up</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
       </ScrollView>
+
+      {/* Bottom Gradient */}
+      <LinearGradient colors={['#dca5f1ff', '#A16EFF']} style={styles.bottomBlob} />
+
+      {/* Sign-in Link */}
+      <View style={styles.signInWrapper}>
+        <Text style={styles.signInText}>Already have an account?</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+          <Text style={styles.signInLink}> Sign In</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF', padding: 20, marginTop: 30 },
-  scrollView: { flex: 1 },
-  contentContainer: { flexGrow: 1, justifyContent: 'center' },
-  topText: { fontSize: 24, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 10 },
-  subText: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 20 },
-  form: { marginTop: 20 },
-  inputContainer: { marginBottom: 15 },
-  label: { fontSize: 14, color: '#666', marginBottom: 5 },
-  input: { backgroundColor: '#F5F5F5', padding: 15, borderRadius: 10, fontSize: 16, color: '#333' },
-  genderContainer: { flexDirection: 'row', justifyContent: 'space-between' },
-  genderButton: { flex: 1, backgroundColor: '#F5F5F5', padding: 15, borderRadius: 10, marginHorizontal: 5, alignItems: 'center' },
-  selectedGender: { backgroundColor: '#E0E0E0' },
-  genderText: { fontSize: 16, color: '#333' },
-  passwordContainer: { position: 'relative', flexDirection: 'row', alignItems: 'center' },
-  passwordInput: { flex: 1, paddingRight: 50 },
-  eyeIcon: { position: 'absolute', right: 15, top: '50%', transform: [{ translateY: -10 }] },
-  createButton: { backgroundColor: '#A16EFF', padding: 15, borderRadius: 15, alignItems: 'center', marginTop: 10 },
-  buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  loginLink: { marginTop: 20, alignItems: 'center' },
-  linkText: { color: '#A16EFF', fontSize: 14, textAlign: 'center' },
-  loadingContainer: { marginTop: 20, alignItems: 'center' },
-  loadingText: { fontSize: 14, color: '#333', marginTop: 10 },
+  container: { flex: 1, backgroundColor: '#fff' },
+  contentContainer: { padding: 20, paddingBottom: 200 },
+  topText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#333',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  subText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  // 🔹 Updated Input Style (same as Login)
+  input: {
+    backgroundColor: '#F2F2F2',
+    padding: 14,
+    borderRadius: 10,
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 15,
+  },
+  genderContainer: { flexDirection: 'row', marginBottom: 15 },
+  genderButton: {
+    flex: 1,
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  selectedGender: { borderColor: '#A16EFF', backgroundColor: '#ffeaea' },
+  genderText: { color: '#333' },
+  // 🔹 Updated Password Container to match Login page
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F2',
+    borderRadius: 10,
+    marginBottom: 15,
+    paddingHorizontal: 10,
+  },
+  passwordInput: { flex: 1, height: 50, fontSize: 16, color: '#333' },
+  eyeIcon: { padding: 5 },
+  buttonWrapper: { marginTop: 10 },
+  button: { paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
+  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  bottomBlob: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    borderTopLeftRadius: 120,
+    borderTopRightRadius: 120,
+  },
+  signInWrapper: {
+    position: 'absolute',
+    bottom: 30,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  signInText: { fontSize: 14, color: '#0e0f0fff', marginBottom: 40 },
+  signInLink: { fontSize: 14, color: '#f8f4f4ff', fontWeight: 'bold', marginBottom: 40 },
 });
+

@@ -11,7 +11,7 @@ export default function AuthHome({ navigation }) {
           style={styles.image}
         />
         <View style={styles.content}>
-          <Text style={styles.title}>Beauty Salon</Text>
+          <Text style={styles.title}>BookMyGlow</Text>
           <Text style={styles.subtitle}>Book your next beauty appointment with ease</Text>
           <TouchableOpacity style={styles.signInButton} onPress={() => navigation.navigate('Login')}>
             <Text style={styles.buttonText}>Sign In</Text>
