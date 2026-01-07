@@ -15,10 +15,14 @@ import debounce from 'lodash.debounce';
 import Geolocation from '@react-native-community/geolocation';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
-// Axios instance with Nominatim user-agent (required by their policy)
+// IMPORTANT: Replace with your real key from https://geocode.maps.co/
+const GEO_API_KEY = '68aed9a14bef6796175016zkuefcff4'; // ← your key here
+
+// Axios instance with proper User-Agent (very important!)
 const api = axios.create({
   headers: {
-    'User-Agent': 'YourAppName/1.0 (contact@example.com)', // replace with your app info
+    'User-Agent': 'YourAppName/1.0 (contact@yourcompany.com)', // ← CHANGE THIS!
+    // You can also add: 'Referer': 'https://yourapp.com' if needed
   },
 });
 
@@ -30,10 +34,10 @@ const LiveLocationScreen = ({ navigation }) => {
   const [locationName, setLocationName] = useState('Fetching your location...');
   const [error, setError] = useState('');
 
-  // Reverse geocode using Nominatim
+  // Reverse geocode using geocode.maps.co
   const reverseGeocode = async (latitude, longitude) => {
     try {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
+      const url = `https://geocode.maps.co/reverse?lat=${latitude}&lon=${longitude}&api_key=${GEO_API_KEY}`;
       const response = await api.get(url);
       const address = response.data?.address || {};
 
@@ -41,7 +45,7 @@ const LiveLocationScreen = ({ navigation }) => {
         address.road || address.street,
         address.suburb || address.neighbourhood,
         address.city || address.town || address.village || address.county,
-        address.state || address.region,
+        address.state || address.region || address.state_district,
         address.country,
       ].filter(Boolean).join(', ');
 
@@ -57,23 +61,34 @@ const LiveLocationScreen = ({ navigation }) => {
     }
   };
 
-  // Debounced manual search (India only)
+  // Debounced search with geocode.maps.co (more reliable than nominatim from client)
   const fetchSuggestions = useCallback(
     debounce(async (query) => {
       if (!query || query.trim().length < 3) {
         setSuggestions([]);
         return;
       }
+
+      setError('');
       try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=in`;
+        const url = `https://geocode.maps.co/search?q=${encodeURIComponent(query)}&limit=6&api_key=${GEO_API_KEY}`;
         const res = await api.get(url);
-        const items = (res.data || []).filter((it) => it.address?.country === 'India');
-        setSuggestions(items);
+
+        const items = res.data || [];
+
+        // Optional: filter India only
+        const indiaItems = items.filter((it) => 
+          it.address?.country?.toLowerCase() === 'india' ||
+          it.address?.country_code?.toLowerCase() === 'in'
+        );
+
+        setSuggestions(indiaItems.length > 0 ? indiaItems : items);
       } catch (err) {
-        console.warn('Search error:', err?.message || err);
-        setError('Failed to fetch suggestions.');
+        console.warn('Search suggestions error:', err?.message || err, err?.response);
+        setError('Failed to fetch suggestions. Please try again later.');
+        setSuggestions([]);
       }
-    }, 300),
+    }, 400),
     []
   );
 
@@ -105,27 +120,27 @@ const LiveLocationScreen = ({ navigation }) => {
         setError('Location permission is blocked. Please enable it in your device settings.');
         Alert.alert(
           'Permission Blocked',
-          'Location permission is required to fetch your current location. Please enable it in Settings.',
+          'Location permission is required. Please enable it in Settings.',
           [{ text: 'OK' }]
         );
         return false;
       } else {
-        setError('Location permission denied. Please grant permission to use your location.');
+        setError('Location permission denied. Please grant permission.');
         Alert.alert(
           'Permission Denied',
-          'Please grant location permission to fetch your current location.',
+          'Please grant location permission to use current location.',
           [{ text: 'OK' }]
         );
         return false;
       }
     } catch (err) {
-      console.warn('Permission check/request error:', err?.message || err);
-      setError('An error occurred while checking permissions.');
+      console.warn('Permission error:', err);
+      setError('Error checking location permission.');
       return false;
     }
   };
 
-  // Fetch current location with retry mechanism
+  // Fetch current location with retry
   const fetchCurrentLocation = async (retryCount = 0, maxRetries = 3) => {
     try {
       const hasPermission = await checkAndRequestPermissions();
@@ -142,23 +157,15 @@ const LiveLocationScreen = ({ navigation }) => {
           await reverseGeocode(latitude, longitude);
         },
         (err) => {
-          console.warn('Geolocation error:', err?.message || err, 'Code:', err?.code);
-          if (retryCount < maxRetries && err.code !== 1) { // code 1 is permission denied
+          console.warn('Geolocation error:', err?.message, 'Code:', err?.code);
+          if (retryCount < maxRetries && err.code !== 1) {
             setTimeout(() => fetchCurrentLocation(retryCount + 1, maxRetries), 3000);
           } else {
-            let errorMessage;
+            let errorMessage = 'Failed to get current location.';
             switch (err.code) {
-              case 1:
-                errorMessage = 'Location permission denied. Please grant permission in settings.';
-                break;
-              case 2:
-                errorMessage = 'Location unavailable. Ensure GPS or network is enabled.';
-                break;
-              case 3:
-                errorMessage = 'Location request timed out. Please try again.';
-                break;
-              default:
-                errorMessage = 'Failed to get current location. Please try searching manually.';
+              case 1: errorMessage = 'Location permission denied.'; break;
+              case 2: errorMessage = 'Location unavailable (GPS/network)'; break;
+              case 3: errorMessage = 'Location request timed out.'; break;
             }
             setError(errorMessage);
             setLocationName('Select a location');
@@ -166,20 +173,19 @@ const LiveLocationScreen = ({ navigation }) => {
           }
         },
         {
-          enableHighAccuracy: false, // Lower accuracy for better compatibility
-          timeout: 30000, // Increased timeout for release builds
-          maximumAge: 0, // Force fresh location
+          enableHighAccuracy: false,
+          timeout: 30000,
+          maximumAge: 0,
         }
       );
     } catch (e) {
-      console.warn('fetchCurrentLocation error:', e?.message || e);
-      setError('An error occurred while fetching your location.');
+      console.warn('fetchCurrentLocation error:', e);
+      setError('Error while fetching location.');
       setLocationName('Select a location');
-      Alert.alert('Error', 'An error occurred while fetching your location.', [{ text: 'OK' }]);
     }
   };
 
-  // Auto-fetch GPS location on mount
+  // Auto fetch on mount
   useEffect(() => {
     fetchCurrentLocation();
   }, []);
@@ -189,15 +195,20 @@ const LiveLocationScreen = ({ navigation }) => {
       const latitude = parseFloat(item.lat);
       const longitude = parseFloat(item.lon);
 
+      if (isNaN(latitude) || isNaN(longitude)) throw new Error('Invalid coordinates');
+
       setCoords({ latitude, longitude });
       setSearchQuery('');
       setSuggestions([]);
       setError('');
 
-      await reverseGeocode(latitude, longitude);
+      const result = await reverseGeocode(latitude, longitude);
+      if (result?.display) {
+        setSelectedLocation(result.display);
+      }
     } catch (e) {
-      console.warn('Pick suggestion error:', e?.message || e);
-      setError('Unable to use the selected place.');
+      console.warn('Pick suggestion error:', e);
+      setError('Unable to select this location.');
       Alert.alert('Error', 'Unable to use the selected place.', [{ text: 'OK' }]);
     }
   };
@@ -207,6 +218,7 @@ const LiveLocationScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please select a location first.');
       return;
     }
+
     navigation.navigate('Home', {
       selectedLocation: {
         name: selectedLocation,
@@ -230,14 +242,17 @@ const LiveLocationScreen = ({ navigation }) => {
           onChangeText={setSearchQuery}
           style={styles.input}
         />
-        <TouchableOpacity style={styles.currentLocationButton} onPress={fetchCurrentLocation}>
+        <TouchableOpacity 
+          style={styles.currentLocationButton} 
+          onPress={() => fetchCurrentLocation()}
+        >
           <MapPin size={20} color="#A16EFF" />
         </TouchableOpacity>
       </View>
 
       <FlatList
         data={suggestions}
-        keyExtractor={(item) => item.place_id?.toString() ?? `${item.lat}-${item.lon}`}
+        keyExtractor={(item, index) => item.place_id?.toString() ?? `${item.lat}-${item.lon}-${index}`}
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => onPickSuggestion(item)}
@@ -250,7 +265,11 @@ const LiveLocationScreen = ({ navigation }) => {
         )}
         ListEmptyComponent={
           searchQuery.length >= 3 ? (
-            <Text style={styles.emptyText}>No results found</Text>
+            suggestions.length === 0 ? (
+              <Text style={styles.emptyText}>
+                {error ? 'Error loading suggestions...' : 'No results found'}
+              </Text>
+            ) : null
           ) : null
         }
         keyboardShouldPersistTaps="handled"
@@ -263,6 +282,7 @@ const LiveLocationScreen = ({ navigation }) => {
   );
 };
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
   label: { fontWeight: 'bold', fontSize: 16, color: '#333', marginTop: 30 },

@@ -1,9 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, Image, ScrollView, TouchableOpacity, FlatList } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 
-// Mapping of service categories to image URLs
+// Mapping of service categories to image URLs (unchanged)
 const serviceImages = {
   Haircut: 'https://img.freepik.com/free-photo/client-doing-hair-cut-barber-shop-salon_1303-20850.jpg',
   Beard: 'https://t4.ftcdn.net/jpg/02/13/03/89/360_F_213038977_OixVF24VDeUPSvtQSMxkvD7eXXlaSiZh.jpg',
@@ -56,7 +56,12 @@ export default function Service() {
   const route = useRoute();
   const { salon } = route.params || {};
   const [services, setServices] = useState([]);
+  const [filteredServices, setFilteredServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  // Categories exactly as in your image
+  const categories = ['All', 'Nails', 'Hair', 'Facial', 'Threading & Waxing'];
 
   // Guard if no salon is passed
   if (!salon) {
@@ -85,7 +90,7 @@ export default function Service() {
     return serviceImages.Other;
   };
 
-  // Function to get salon image URL (same as Home page)
+  // Function to get salon image URL
   const getSalonImageUrl = (salonImages) => {
     if (!salonImages || salonImages === '') {
       return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80';
@@ -93,13 +98,46 @@ export default function Service() {
     if (salonImages.startsWith('http://') || salonImages.startsWith('https://')) {
       return salonImages;
     }
-    return `http://172.24.57.37:8005${salonImages}`;
+    return `https://backendsalon.pragyacode.com${salonImages}`;
   };
+
+  // Filter services based on selected category
+  useEffect(() => {
+    if (selectedCategory === 'All') {
+      setFilteredServices(services);
+    } else if (selectedCategory === 'Nails') {
+      setFilteredServices(services.filter(s => 
+        s.name.toLowerCase().includes('nail') || 
+        s.name.toLowerCase().includes('mani') || 
+        s.name.toLowerCase().includes('pedi')
+      ));
+    } else if (selectedCategory === 'Hair') {
+      setFilteredServices(services.filter(s => 
+        s.name.toLowerCase().includes('hair') || 
+        s.name.toLowerCase().includes('cut') || 
+        s.name.toLowerCase().includes('color') ||
+        s.name.toLowerCase().includes('styling') ||
+        s.name.toLowerCase().includes('spa') ||
+        s.name.toLowerCase().includes('treatment')
+      ));
+    } else if (selectedCategory === 'Facial') {
+      setFilteredServices(services.filter(s => 
+        s.name.toLowerCase().includes('facial') || 
+        s.name.toLowerCase().includes('bleach') ||
+        s.name.toLowerCase().includes('detan')
+      ));
+    } else if (selectedCategory === 'Threading & Waxing') {
+      setFilteredServices(services.filter(s => 
+        s.name.toLowerCase().includes('thread') || 
+        s.name.toLowerCase().includes('wax')
+      ));
+    }
+  }, [selectedCategory, services]);
 
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const response = await fetch(`http://172.24.57.37:8005/api/public/salons`);
+        const response = await fetch(`https://backendsalon.pragyacode.com/api/public/salons`);
         const data = await response.json();
         const selectedSalon = data.find(s => s.salonId === salon.salonId);
         setServices(selectedSalon?.services || []);
@@ -129,15 +167,45 @@ export default function Service() {
           </View>
           <Text style={styles.detailsText}>{salonDetails}</Text>
         </View>
+
         <View style={styles.servicesSection}>
           <Text style={styles.servicesTitle}>Services</Text>
+
+          {/* Horizontal Filter Tabs */}
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={categories}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                onPress={() => setSelectedCategory(item)}
+                style={[
+                  styles.categoryTab,
+                  selectedCategory === item && styles.selectedCategoryTab,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.categoryText,
+                    selectedCategory === item && styles.selectedCategoryText,
+                  ]}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            )}
+            contentContainerStyle={styles.categoryContainer}
+          />
+
+          {/* Services List */}
           <View style={styles.servicesContainer}>
             {isLoading ? (
               <Text style={styles.serviceText}>Loading services...</Text>
-            ) : services.length === 0 ? (
-              <Text style={styles.serviceText}>No services available</Text>
+            ) : filteredServices.length === 0 ? (
+              <Text style={styles.serviceText}>No services available in this category</Text>
             ) : (
-              services.map((service, index) => (
+              filteredServices.map((service, index) => (
                 <View style={styles.serviceItem} key={index}>
                   <Image source={{ uri: getServiceImage(service.name) }} style={styles.serviceImage} resizeMode="cover" />
                   <View style={styles.serviceInfo}>
@@ -188,7 +256,6 @@ const styles = StyleSheet.create({
     color: '#2E2E2E',
     marginVertical: 15,
     textAlign: 'center',
-    
   },
   salonAddress: {
     fontSize: 13,
@@ -210,15 +277,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   detailsText: {
-  fontSize: 16,
-  color: '#666666',
-  textAlign: 'justify',   // 👈 equal spacing dono side
-  marginTop: 15,
-  lineHeight: 24,
-  fontWeight: '400',
-  paddingHorizontal: 15,  // 👈 thoda zyada padding rakho
-},
-
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'justify',
+    marginTop: 15,
+    lineHeight: 24,
+    fontWeight: '400',
+    paddingHorizontal: 15,
+  },
   servicesSection: {
     padding: 20,
     backgroundColor: '#FFFFFF',
@@ -232,6 +298,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 20,
   },
+  categoryContainer: {
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+  },
+  categoryTab: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    marginHorizontal: 6,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  selectedCategoryTab: {
+    backgroundColor: '#A16EFF',
+    borderColor: '#A16EFF',
+  },
+  categoryText: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '600',
+  },
+  selectedCategoryText: {
+    color: '#FFFFFF',
+  },
   servicesContainer: {
     marginHorizontal: 10,
   },
@@ -240,11 +331,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
-    marginBottom: 25, // Increased margin for more gap between items
+    marginBottom: 25,
   },
   serviceInfo: {
     flex: 1,
-    paddingLeft: 10, // Adjusted for image-first layout
+    paddingLeft: 10,
   },
   serviceText: {
     fontSize: 16,

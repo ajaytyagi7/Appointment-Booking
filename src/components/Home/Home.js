@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, ScrollView, Alert, Platform } from 'react-native';
-import { Home as HomeIcon, Calendar, User, ChevronDown, Bell } from 'lucide-react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, ScrollView, Alert, Platform, TextInput } from 'react-native';
+import { Home as HomeIcon, Calendar, User, ChevronDown, Bell, Search } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from '@react-native-community/geolocation';
@@ -19,18 +19,17 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return R * c; // Distance in km
 };
 
-// Reverse geocode using Nominatim
+// Reverse geocode using geocode.maps.co
 const reverseGeocode = async (latitude, longitude) => {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
+    const url = `https://geocode.maps.co/reverse?lat=${latitude}&lon=${longitude}&api_key=68aed9a14bef6796175016zkuefcff4`;
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'YourAppName/1.0 (contact@example.com)', // replace with your app info
+        'User-Agent': 'YourAppName/1.0 (contact@example.com)',
       },
     });
     const data = await response.json();
     const address = data?.address || {};
-
     const name = [
       address.road || address.street,
       address.suburb || address.neighbourhood,
@@ -38,7 +37,6 @@ const reverseGeocode = async (latitude, longitude) => {
       address.state || address.region,
       address.country,
     ].filter(Boolean).join(', ');
-
     return name || data?.display_name || 'Current Location';
   } catch (err) {
     console.warn('Reverse geocode error:', err?.message || err);
@@ -49,18 +47,16 @@ const reverseGeocode = async (latitude, longitude) => {
 // Fetch appointments from backend
 const fetchAppointments = async (customerId, token) => {
   try {
-    const response = await fetch('http://172.24.57.37:8005/api/booking', {
+    const response = await fetch('https://backendsalon.pragyacode.com/api/booking', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });
-
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
-
     const appointments = await response.json();
     return Array.isArray(appointments) ? appointments : [];
   } catch (error) {
@@ -73,14 +69,11 @@ const fetchAppointments = async (customerId, token) => {
 const generateNotifications = (appointments) => {
   const notifications = [];
   const now = new Date();
-  const today = new Date(now.toISOString().split('T')[0]); // Get today's date in YYYY-MM-DD format
-
+  const today = new Date(now.toISOString().split('T')[0]);
   appointments.forEach((appointment) => {
     if (appointment.status === 'Cancelled') {
-      return; // Skip cancelled appointments
+      return;
     }
-
-    // Confirmation notification (only for future bookings)
     const appointmentDate = new Date(appointment.bookingDate);
     if (appointmentDate >= today) {
       notifications.push({
@@ -89,8 +82,6 @@ const generateNotifications = (appointments) => {
         time: appointment.bookingDate,
       });
     }
-
-    // Reminder notification (1 hour before)
     const appointmentDateTime = new Date(`${appointment.bookingDate}T${appointment.time}`);
     const oneHourBefore = new Date(appointmentDateTime.getTime() - 60 * 60 * 1000);
     if (now >= oneHourBefore && now < appointmentDateTime) {
@@ -101,7 +92,6 @@ const generateNotifications = (appointments) => {
       });
     }
   });
-
   return notifications;
 };
 
@@ -111,12 +101,10 @@ const checkAndRequestPermissions = async () => {
     const permission = Platform.OS === 'android'
       ? PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION
       : PERMISSIONS.IOS.LOCATION_WHEN_IN_USE;
-
     let result = await check(permission);
     if (result === RESULTS.DENIED) {
       result = await request(permission);
     }
-
     if (result === RESULTS.GRANTED) {
       return true;
     } else if (result === RESULTS.BLOCKED) {
@@ -155,7 +143,6 @@ const fetchCurrentLocation = async (retryCount = 0, maxRetries = 3) => {
     if (!hasPermission) {
       return { name: 'Select Location', latitude: null, longitude: null };
     }
-
     return new Promise((resolve, reject) => {
       Geolocation.getCurrentPosition(
         async (pos) => {
@@ -168,8 +155,8 @@ const fetchCurrentLocation = async (retryCount = 0, maxRetries = 3) => {
         },
         (err) => {
           console.warn('Geolocation error:', err?.message || err, 'Code:', err?.code);
-          if (retryCount < maxRetries && err.code !== 1) { // code 1 is permission denied
-            setTimeout(() => fetchCurrentLocation(retryCount + 1, maxRetries).then(resolve).catch(reject), 2000);
+          if (retryCount < maxRetries && err.code !== 1) {
+            setTimeout(() => fetchCurrentLocation(retryCount + 1, maxRetries).then(resolve).catch(reject), 1000);
           } else {
             let errorMessage;
             switch (err.code) {
@@ -190,7 +177,7 @@ const fetchCurrentLocation = async (retryCount = 0, maxRetries = 3) => {
           }
         },
         {
-          enableHighAccuracy: true,
+          enableHighAccuracy: false,
           timeout: 20000,
           maximumAge: 1000,
         }
@@ -208,22 +195,23 @@ export default function Home() {
   const route = useRoute();
   const [activeNav, setActiveNav] = useState('Home');
   const [salons, setSalons] = useState([]);
+  const [filteredSalons, setFilteredSalons] = useState([]); // For search results
   const [isLoading, setIsLoading] = useState(true);
   const [customerName, setCustomerName] = useState('Guest');
-  const [location, setLocation] = useState(null); // { name, latitude, longitude }
+  const [location, setLocation] = useState(null);
   const [error, setError] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // Search input state
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        // Fetch customer data
         const token = await AsyncStorage.getItem('userToken');
         let customerId = null;
         if (token) {
-          const customerResponse = await fetch('http://172.24.57.37:8005/api/customer-app/me', {
+          const customerResponse = await fetch('https://backendsalon.pragyacode.com/api/customer-app/me', {
             method: 'GET',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -247,7 +235,6 @@ export default function Home() {
           setCustomerName('Guest');
         }
 
-        // Check for selected location from navigation params
         const selectedLocation = route.params?.selectedLocation;
         let currentLocation;
         if (selectedLocation && selectedLocation.name && selectedLocation.latitude && selectedLocation.longitude) {
@@ -259,12 +246,10 @@ export default function Home() {
           setLocation(currentLocation);
           setError('');
         } else {
-          // Fetch current location if no selected location is provided
           currentLocation = await fetchCurrentLocation();
           setLocation(currentLocation);
         }
 
-        // Fetch appointments and generate notifications
         if (token && customerId) {
           const appointments = await fetchAppointments(customerId, token);
           const generatedNotifications = generateNotifications(appointments);
@@ -273,56 +258,46 @@ export default function Home() {
           setNotifications([]);
         }
 
-        // Fetch all salons from backend
-        const response = await fetch('http://172.24.57.37:8005/api/public/salons');
+        const response = await fetch('https://backendsalon.pragyacode.com/api/public/salons');
         const data = await response.json();
 
-        // Filter and sort salons by distance
         if (currentLocation && currentLocation.latitude && currentLocation.longitude) {
-          const locationWords = currentLocation.name.toLowerCase().split(/[\s,]+/).filter(word => word.length > 0);
           const matchedSalons = data
             .map((salon) => {
-              const address = (salon.location?.addressLine1 || '') + ' ' + (salon.location?.city || '');
-              const addressWords = address.toLowerCase().split(/[\s,]+/).filter(word => word.length > 0);
-              const matches = locationWords.some(word => addressWords.includes(word));
               const latitude = salon.location?.latitude;
               const longitude = salon.location?.longitude;
               let distance = 'N/A';
-              if (latitude && longitude && matches) {
+              if (latitude && longitude) {
                 distance = getDistance(
                   currentLocation.latitude,
                   currentLocation.longitude,
                   latitude,
                   longitude
-                ).toFixed(1); // Round to 1 decimal place
+                ).toFixed(1);
               }
-              return { ...salon, distance, matches };
+              return { ...salon, distance };
             })
-            .filter((salon) => salon.matches) // Keep only matching salons
-            .sort((a, b) => {
-              if (a.distance === 'N/A' && b.distance === 'N/A') return 0;
-              if (a.distance === 'N/A') return 1;
-              if (b.distance === 'N/A') return -1;
-              return parseFloat(a.distance) - parseFloat(b.distance); // Sort by distance (ascending)
-            });
+            .filter((salon) => salon.distance !== 'N/A' && parseFloat(salon.distance) <= 10)
+            .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
           setSalons(matchedSalons);
+          setFilteredSalons(matchedSalons); // Initial filtered list = full list
         } else {
-          setSalons([]); // No location → no salons
+          setSalons([]);
+          setFilteredSalons([]);
         }
       } catch (error) {
         console.error('Fetch error:', error.message);
         setError('An error occurred while fetching data.');
         setCustomerName('Guest');
         setSalons([]);
+        setFilteredSalons([]);
         setNotifications([]);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchData();
 
-    // Poll for new appointments every 60 seconds to update notifications
     const intervalId = setInterval(() => {
       AsyncStorage.getItem('userToken').then((token) => {
         if (token) {
@@ -338,9 +313,21 @@ export default function Home() {
       });
     }, 60 * 1000);
 
-    // Cleanup interval on unmount
     return () => clearInterval(intervalId);
   }, [navigation, route.params?.selectedLocation]);
+
+  // Filter salons whenever search query changes
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredSalons(salons);
+    } else {
+      const lowerQuery = searchQuery.toLowerCase();
+      const filtered = salons.filter((salon) =>
+        salon.salonName?.toLowerCase().includes(lowerQuery)
+      );
+      setFilteredSalons(filtered);
+    }
+  }, [searchQuery, salons]);
 
   const navItems = [
     { icon: HomeIcon, label: 'Home', screen: 'Home' },
@@ -355,7 +342,7 @@ export default function Home() {
     if (salonImages.startsWith('http://') || salonImages.startsWith('https://')) {
       return salonImages;
     }
-    return `http://172.24.57.37:8005${salonImages}`;
+    return `https://backendsalon.pragyacode.com${salonImages}`;
   };
 
   const handleNotificationPress = () => {
@@ -386,21 +373,40 @@ export default function Home() {
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
+
       <ScrollView style={styles.scrollView}>
-        <View />
         <View style={styles.specialOffer}>
           <Image
             source={require("../../assets/Banner.png")}
             style={styles.offerImage}
           />
         </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search size={20} color="#7F8C8D" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search salons..."
+            placeholderTextColor="#7F8C8D"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+          />
+        </View>
+
         <Text style={styles.servicesTitle}>Our Salons</Text>
-        <Text style={styles.servicesCount}>{isLoading ? 'Loading...' : `${salons.length} salons available`}</Text>
+        <Text style={styles.servicesCount}>
+          {isLoading ? 'Loading...' : `${filteredSalons.length} salons available`}
+        </Text>
+
         <View style={styles.servicesContainer}>
           {isLoading ? (
             <Text style={styles.serviceText}>Loading salons...</Text>
+          ) : filteredSalons.length === 0 ? (
+            <Text style={styles.serviceText}>No salons found</Text>
           ) : (
-            salons.map((salon, index) => (
+            filteredSalons.map((salon, index) => (
               <View style={styles.serviceCard} key={index}>
                 <Image
                   source={{ uri: getImageUrl(salon.salonImages) }}
@@ -428,6 +434,7 @@ export default function Home() {
           )}
         </View>
       </ScrollView>
+
       <View style={styles.navBar}>
         {navItems.map(({ icon: Icon, label, screen }) => (
           <TouchableOpacity
@@ -435,10 +442,8 @@ export default function Home() {
             style={styles.navButton}
             onPress={() => {
               setActiveNav(label);
-              setShowNotifications(false); // Hide notifications when navigating
-              if (screen === 'Home') {
-                return;
-              }
+              setShowNotifications(false);
+              if (screen === 'Home') return;
               if (screen === 'Appointment') {
                 const appointment = salons.length > 0 ? {
                   service: salons[0].services[0]?.name || "Men's Facial Treatment",
@@ -461,6 +466,7 @@ export default function Home() {
           </TouchableOpacity>
         ))}
       </View>
+
       {showNotifications && (
         <View style={styles.notificationOverlay}>
           <TouchableOpacity
@@ -573,10 +579,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   notificationDropdown: {
-    marginTop: 80, // Position below the status bar and notification icon
+    marginTop: 80,
     marginRight: 20,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
@@ -644,7 +650,31 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 230,
     resizeMode: 'cover',
-    padding: 20,
+  },
+  // New Search Styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginTop: 15,
+    marginBottom: 10,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    height: 48,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#2E2E2E',
   },
   bookButton: {
     position: 'absolute',
@@ -709,6 +739,9 @@ const styles = StyleSheet.create({
   serviceAddress: {
     fontSize: 12,
     color: '#7F8C8D',
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    maxWidth: '70%',
   },
   serviceDistance: {
     fontSize: 12,

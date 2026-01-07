@@ -9,7 +9,7 @@ import {
   Alert,
   ScrollView,
   TextInput,
-   ActivityIndicator,
+  ActivityIndicator,
 } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,7 +30,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import axios from 'axios';
 
 const { width } = Dimensions.get('window');
-const BASE_URL = 'http://172.24.57.37:8005';
+const BASE_URL = 'https://backendsalon.pragyacode.com';
 
 export default function Profile({ navigation }) {
   const mainNavigation = useNavigation();
@@ -181,7 +181,7 @@ export default function Profile({ navigation }) {
         return;
       }
 
-     const response = await axios.post(`${BASE_URL}/api/customer-app/update`, {
+      const response = await axios.post(`${BASE_URL}/api/customer-app/update`, {
         fullName: trimmedFullName,
         mobileNumber: trimmedMobileNumber,
         email: trimmedEmail,
@@ -290,8 +290,15 @@ export default function Profile({ navigation }) {
         />
 
         <Text style={styles.menuHeader}>Settings</Text>
-        <MenuItem icon={<LucideBell color="#6B46C1" size={24} />} label="Notifications" />
-        <MenuItem icon={<LucideHelpCircle color="#6B46C1" size={24} />} label="Help & Support" />
+        <MenuItem
+          icon={<LucideBell color="#6B46C1" size={24} />}
+          label="Notifications"
+        />
+        <MenuItem
+          icon={<LucideHelpCircle color="#6B46C1" size={24} />}
+          label="Help & Support"
+          onPress={() => navigation.navigate('HelpSupport')}
+        />
 
         {isLoggedIn && (
           <MenuItem

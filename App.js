@@ -16,6 +16,7 @@ import Service from './src/components/booking/Service';
 import Privacy from './src/components/auth/Privacy';
 import Terms from './src/components/auth/Terms';
 import LiveLocationScreen from './src/components/booking/LiveLocationScreen';
+import HelpSupport from './src/components/Home/HelpSupport';
 
 const Stack = createNativeStackNavigator();
 
@@ -70,6 +71,8 @@ export default function RootLayout() {
         <Stack.Screen name="Privacy" component={Privacy} />
         <Stack.Screen name="Terms" component={Terms} />
         <Stack.Screen name="LiveLocationScreen" component={LiveLocationScreen} />
+        <Stack.Screen name="HelpSupport" component={HelpSupport} />
+
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>

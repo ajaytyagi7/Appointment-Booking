@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LucideIcon, Home as HomeIcon, Calendar, User } from 'lucide-react-native';
 
 // Configurable base URL for API
-const BASE_URL = 'http://172.24.57.37:8005';
+const BASE_URL = 'https://backendsalon.pragyacode.com';
 
 export default function Appointment() {
   const navigation = useNavigation();
@@ -277,7 +277,7 @@ export default function Appointment() {
             const staffImageKey = `${appointment.salonId}_${appointment.staff}`;
             const staffImage = staffImages[staffImageKey] 
               ? `${BASE_URL}${staffImages[staffImageKey]}` 
-              : 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80';
+              : 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTmmYP0uAEREyajztxOewF3YtXdMBGfgbhskg&s';
 
             return (
               <View key={index} style={styles.appointmentCard}>

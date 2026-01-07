@@ -15,20 +15,16 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LinearGradient from 'react-native-linear-gradient';
-import { Eye, EyeOff } from 'lucide-react-native';
 
-const BASE_URL = 'http://172.24.57.37:8005';
+const BASE_URL = 'https://backendsalon.pragyacode.com';
 
 export default function Login() {
   const navigation = useNavigation();
   const route = useRoute();
-  const [activeTab, setActiveTab] = useState('email'); // 'email' or 'mobile'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [mobileError, setMobileError] = useState(''); // New state for mobile validation error
   
   // Forgot/reset states
   const [modalVisible, setModalVisible] = useState(false);
@@ -55,53 +51,36 @@ export default function Login() {
       }
 
       if (route.params?.email && route.params?.password) {
-        setEmail(route.params.email);
-        setPassword(route.params.password);
+        // No longer needed since email login is removed
       }
     };
     checkAuthStatus();
   }, [route.params, navigation]);
 
-  const handleEmailLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
-    }
+  // Handle mobile input - only digits, max 10, real-time validation
+  const handleMobileChange = (text) => {
+    // Remove any non-digit characters
+    const numericValue = text.replace(/[^0-9]/g, '');
+    setMobile(numericValue);
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${BASE_URL}/api/customer-app/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        const token = data.token;
-        const customerId = String(data.customer?.customerId);
-
-        if (!token || !customerId) {
-          throw new Error('Missing token or customerId in response');
-        }
-
-        await AsyncStorage.setItem('userToken', token);
-        await AsyncStorage.setItem('customerId', customerId);
-        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-      } else {
-        throw new Error(data.error || 'Login failed');
-      }
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to log in. Please try again.');
-    } finally {
-      setIsLoading(false);
+    // Validation feedback
+    if (numericValue.length > 0 && numericValue.length < 10) {
+      setMobileError('Please enter a valid 10-digit mobile number');
+    } else if (numericValue.length > 10) {
+      setMobileError('Mobile number cannot exceed 10 digits');
+    } else {
+      setMobileError('');
     }
   };
 
-  // Mobile OTP login - Send OTP
+  // Mobile OTP login - Send OTP via WhatsApp
   const handleSendMobileOtp = async () => {
     if (!mobile) {
-      Alert.alert('Error', 'Please enter your mobile number');
+      Alert.alert('Notice', 'Please enter your mobile number');
+      return;
+    }
+    if (mobile.length !== 10) {
+      Alert.alert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number');
       return;
     }
 
@@ -113,15 +92,26 @@ export default function Login() {
         body: JSON.stringify({ mobile }),
       });
 
-      const data = await response.json();
+      // Always try to parse JSON safely
+      let data;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        data = {};
+      }
+
       if (response.ok) {
         setIsMobileOtpSent(true);
-        Alert.alert('Success', 'OTP sent to your mobile number');
+        Alert.alert('Success', 'OTP sent via WhatsApp 📱');
       } else {
-        throw new Error(data.error || 'Failed to send OTP');
+        // Show user-friendly message instead of raw error
+        const errorMsg = data.error || data.message || 'Unable to send OTP. Please try again later.';
+        Alert.alert('Notice', errorMsg);
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+      // Network or unexpected error - show clean message
+      Alert.alert('Notice', 'Something went wrong. Please check your internet connection and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -130,7 +120,7 @@ export default function Login() {
   // Mobile OTP login - Verify OTP
   const handleVerifyMobileOtp = async () => {
     if (!otp) {
-      Alert.alert('Error', 'Please enter the OTP');
+      Alert.alert('Notice', 'Please enter the OTP');
       return;
     }
 
@@ -142,23 +132,37 @@ export default function Login() {
         body: JSON.stringify({ mobile, otp }),
       });
 
-      const data = await response.json();
+      let data;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        data = {};
+      }
+
       if (response.ok) {
         const token = data.token;
         const customerId = String(data.customer?.customerId);
 
         if (!token || !customerId) {
-          throw new Error('Missing token or customerId in response');
+          Alert.alert('Login Failed', 'Invalid response from server. Please try again.');
+          return;
         }
 
         await AsyncStorage.setItem('userToken', token);
         await AsyncStorage.setItem('customerId', customerId);
         navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
       } else {
-        throw new Error(data.error || 'Invalid or expired OTP');
+        // Clean user-friendly error messages
+        const errorMsg = data.error || data.message || 'Invalid or expired OTP. Please request a new one.';
+        if (errorMsg.toLowerCase().includes('not found') || errorMsg.toLowerCase().includes('user')) {
+          Alert.alert('Account Not Found', 'This mobile number is not registered. Please sign up first.');
+        } else {
+          Alert.alert('Invalid OTP', errorMsg);
+        }
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again.');
+      Alert.alert('Notice', 'Failed to verify OTP. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -176,7 +180,7 @@ export default function Login() {
 
   const handleForgotPassword = async () => {
     if (!forgotPasswordEmail) {
-      Alert.alert('Error', 'Please enter your email address');
+      Alert.alert('Notice', 'Please enter your email address');
       return;
     }
 
@@ -188,15 +192,27 @@ export default function Login() {
         body: JSON.stringify({ email: forgotPasswordEmail }),
       });
 
-      const data = await response.json();
+      let data;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        data = {};
+      }
+
       if (response.ok) {
         setIsOtpSent(true);
         Alert.alert('Success', 'OTP sent to your email');
       } else {
-        throw new Error(data.error || 'Failed to send OTP');
+        const errorMsg = data.error || data.message || 'Failed to send OTP';
+        if (errorMsg.toLowerCase().includes('not found')) {
+          Alert.alert('Email Not Found', 'No account found with this email address.');
+        } else {
+          Alert.alert('Notice', errorMsg);
+        }
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+      Alert.alert('Notice', 'Something went wrong. Please try again.');
     } finally {
       setModalLoading(false);
     }
@@ -204,7 +220,7 @@ export default function Login() {
 
   const handleVerifyOtp = async () => {
     if (!forgotPasswordOtp) {
-      Alert.alert('Error', 'Please enter the OTP');
+      Alert.alert('Notice', 'Please enter the OTP');
       return;
     }
 
@@ -216,19 +232,28 @@ export default function Login() {
         body: JSON.stringify({ email: forgotPasswordEmail, otp: forgotPasswordOtp }),
       });
 
-      const data = await response.json();
+      let data;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        data = {};
+      }
+
       if (response.ok) {
         if (!data.resetToken) {
-          throw new Error('Missing reset token from server');
+          Alert.alert('Error', 'Invalid response. Please try again.');
+          return;
         }
         setResetToken(data.resetToken);
         setIsOtpVerified(true);
         Alert.alert('Success', 'OTP verified successfully');
       } else {
-        throw new Error(data.error || 'Invalid or expired OTP');
+        const errorMsg = data.error || data.message || 'Invalid or expired OTP';
+        Alert.alert('Invalid OTP', errorMsg);
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again.');
+      Alert.alert('Notice', 'Failed to verify OTP. Please try again.');
     } finally {
       setModalLoading(false);
     }
@@ -236,25 +261,25 @@ export default function Login() {
 
   const handleResetPassword = async () => {
     if (!newPassword || !confirmNewPassword) {
-      Alert.alert('Error', 'Please enter and confirm your new password');
+      Alert.alert('Notice', 'Please enter and confirm your new password');
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert('Notice', 'Passwords do not match');
       return;
     }
 
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
       Alert.alert(
-        'Weak Password',
+        'Notice',
         'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.'
       );
       return;
     }
 
     if (!resetToken) {
-      Alert.alert('Error', 'Reset token not found. Please verify OTP again.');
+      Alert.alert('Notice', 'Session expired. Please request a new OTP.');
       return;
     }
 
@@ -271,16 +296,24 @@ export default function Login() {
         }),
       });
 
-      const data = await response.json();
+      let data;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        data = {};
+      }
+
       if (response.ok) {
         Alert.alert('Success', 'Password reset successfully');
         setModalVisible(false);
         resetModalState();
       } else {
-        throw new Error(data.error || 'Failed to reset password');
+        const errorMsg = data.error || data.message || 'Failed to reset password';
+        Alert.alert('Error', errorMsg);
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to reset password. Please try again.');
+      Alert.alert('Notice', 'Failed to reset password. Please try again.');
     } finally {
       setModalLoading(false);
     }
@@ -290,12 +323,17 @@ export default function Login() {
     <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor="#A16EFF" />
       <LinearGradient colors={['#A16EFF', '#dca5f1ff']} style={styles.header}>
-        <Image
-          source={require("../../assets/salonlogo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.headerTitle}>Welcome to BookMyGlow</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require("../../assets/salonlogo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+          
+          <Text style={styles.headerSubtitle}>Book Your Appointment</Text>
+        </View>
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -303,119 +341,63 @@ export default function Login() {
           <Text style={styles.loginTitle}>Login</Text>
           <Text style={styles.loginSubtitle}>Login to continue</Text>
 
-          {/* Tab Navigation */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'email' && styles.activeTab]}
-              onPress={() => setActiveTab('email')}
-            >
-              <Text style={[styles.tabText, activeTab === 'email' && styles.activeTabText]}>Email</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'mobile' && styles.activeTab]}
-              onPress={() => setActiveTab('mobile')}
-            >
-              <Text style={[styles.tabText, activeTab === 'mobile' && styles.activeTabText]}>Mobile</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Email Login Form */}
-          {activeTab === 'email' && (
+          {/* Mobile Login Form - WhatsApp OTP Only */}
+          {!isMobileOtpSent ? (
             <>
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Email"
+                  value={mobile}
+                  onChangeText={handleMobileChange}
+                  placeholder="Mobile Number (WhatsApp)"
                   placeholderTextColor="#999"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
+                  keyboardType="numeric"
+                  maxLength={10}
                 />
+                {mobileError ? (
+                  <Text style={styles.errorText}>{mobileError}</Text>
+                ) : null}
               </View>
-              <View style={styles.inputContainer}>
-                <View style={styles.passwordWrapper}>
-                  <TextInput
-                    style={[styles.input, styles.passwordInput]}
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder="Password"
-                    placeholderTextColor="#999"
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeIcon}
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff color="#666" size={20} /> : <Eye color="#666" size={20} />}
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', marginBottom: 15 }}>
+                OTP will be sent via WhatsApp
+              </Text>
               {isLoading ? (
                 <ActivityIndicator size="large" color="#A16EFF" style={{ marginTop: 20 }} />
               ) : (
-                <TouchableOpacity style={styles.loginButton} onPress={handleEmailLogin}>
-                  <Text style={styles.buttonText}>Login</Text>
+                <TouchableOpacity style={styles.loginButton} onPress={handleSendMobileOtp}>
+                  <Text style={styles.buttonText}>Send OTP on WhatsApp</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={{ marginTop: 10 }} onPress={() => setModalVisible(true)}>
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity>
             </>
-          )}
-
-          {/* Mobile Login Form */}
-          {activeTab === 'mobile' && (
+          ) : (
             <>
-              {!isMobileOtpSent ? (
-                <>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      value={mobile}
-                      onChangeText={setMobile}
-                      placeholder="Mobile Number"
-                      placeholderTextColor="#999"
-                      keyboardType="phone-pad"
-                      autoCapitalize="none"
-                    />
-                  </View>
-                  {isLoading ? (
-                    <ActivityIndicator size="large" color="#A16EFF" style={{ marginTop: 20 }} />
-                  ) : (
-                    <TouchableOpacity style={styles.loginButton} onPress={handleSendMobileOtp}>
-                      <Text style={styles.buttonText}>Send OTP</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={otp}
+                  onChangeText={setOtp}
+                  placeholder="Enter OTP"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', marginBottom: 10 }}>
+                Check your WhatsApp for the OTP
+              </Text>
+              {isLoading ? (
+                <ActivityIndicator size="large" color="#A16EFF" style={{ marginTop: 20 }} />
               ) : (
-                <>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      value={otp}
-                      onChangeText={setOtp}
-                      placeholder="Enter OTP"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  {isLoading ? (
-                    <ActivityIndicator size="large" color="#A16EFF" style={{ marginTop: 20 }} />
-                  ) : (
-                    <TouchableOpacity style={styles.loginButton} onPress={handleVerifyMobileOtp}>
-                      <Text style={styles.buttonText}>Verify OTP</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={{ marginTop: 10 }}
-                    onPress={handleSendMobileOtp}
-                    disabled={isLoading}
-                  >
-                    <Text style={styles.forgotText}>Resend OTP</Text>
-                  </TouchableOpacity>
-                </>
+                <TouchableOpacity style={styles.loginButton} onPress={handleVerifyMobileOtp}>
+                  <Text style={styles.buttonText}>Verify OTP</Text>
+                </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={{ marginTop: 10 }}
+                onPress={handleSendMobileOtp}
+                disabled={isLoading}
+              >
+                <Text style={styles.forgotText}>Resend OTP on WhatsApp</Text>
+              </TouchableOpacity>
             </>
           )}
 
@@ -551,15 +533,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headerContent: {
+    alignItems: 'center',
+  },
+  logoContainer: {
+    width: 170,
+    height: 170,
+    backgroundColor: '#fff',
+    borderRadius: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 15,
+    width: 140,
+    height: 140,
   },
   headerTitle: {
-    color: '#fff',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 5,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#fff',
+    opacity: 0.8,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -590,30 +589,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  tab: {
-    flex: 1,
-    padding: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: '#E0E0E0',
-  },
-  activeTab: {
-    borderBottomColor: '#A16EFF',
-  },
-  tabText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
-  },
-  activeTabText: {
-    color: '#A16EFF',
-    fontWeight: 'bold',
-  },
   inputContainer: {
     marginBottom: 15,
   },
@@ -623,18 +598,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     fontSize: 16,
     color: '#333',
-  },
-  passwordWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  passwordInput: {
-    flex: 1,
-    paddingRight: 40,
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 15,
   },
   loginButton: {
     backgroundColor: '#A16EFF',
@@ -657,6 +620,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 12,
+    marginTop: 5,
+    marginLeft: 5,
   },
   modalOverlay: {
     flex: 1,
